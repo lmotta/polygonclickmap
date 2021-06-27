@@ -19,13 +19,15 @@ from PIL import Image, ImageDraw
 
 import numpy as np
 
-import os
+import os, time
 
 
 class MapItemFlood(QgsMapCanvasItem):
     def __init__(self, canvas):
         super().__init__( canvas )
         self.image = None
+        self.colorTransparence = QColor(0, 0, 0, 0)
+        self.enabled = True
         self.layers = None
         self.mapCanvas = canvas
       
@@ -36,6 +38,11 @@ class MapItemFlood(QgsMapCanvasItem):
                 image = image.scaled( image.width() / 3, image.height() / 3 )
                 image = image.convertToFormat( QImage.Format_Indexed8, Qt.OrderedDither | Qt.OrderedAlphaDither )
             self.image = image
+
+        if not self.enabled:
+            self.image = QImage( 1, 1, QImage.Format_RGB32 )
+            self.image.fill( self.colorTransparence )
+            return
 
         settings = QgsMapSettings( self.mapCanvas.mapSettings() )
         settings.setLayers( self.layers )
@@ -48,11 +55,14 @@ class MapItemFlood(QgsMapCanvasItem):
         job.waitForFinished()
 
     def paint(self, painter, *args): # NEED *args for   WINDOWS!
+        if not self.layers:
+            return
         self._setImage()
         painter.drawImage( self.image.rect(), self.image )
         
     def setLayers(self, layers):
         self.layers = layers
+        self.enabled = True
 
 
 class CanvasDatasetImage():
@@ -127,7 +137,7 @@ class CanvasFlood():
         self.extent = None
         self.transform = self.mapCanvas.getCoordinateTransform().transform
         self.mapCanvasImage = CanvasDatasetImage( self.mapCanvas )
-        self.mapItem = None
+        self.mapItem = MapItemFlood( self.mapCanvas )
 
         self.pointTool = QgsMapToolEmitPoint( self.mapCanvas )
         self.pointTool.canvasClicked.connect( self._canvasClicked )
@@ -168,9 +178,15 @@ class CanvasFlood():
                 self.extent = self.mapCanvas.extent()
             self.createFlood()
 
+        def toggleMapItem():
+            self.mapItem.enabled = not self.mapItem.enabled
+            self.mapItem.updateCanvas()
+            #self.mapCanvas.refresh()
+
         actions = {
             Qt.LeftButton: createFlood,
-            Qt.RightButton: self.removeLastFlood
+            #Qt.RightButton: self.removeLastFlood
+            Qt.RightButton: toggleMapItem 
         }
         actions[ button ]()
 
@@ -250,6 +266,20 @@ class CanvasFlood():
         return result
 
     def _polygonizeFlood(self):
+        def createQgsVectorLayer(layer):
+            crs = self.mapCanvas.mapSettings().destinationCrs().authid()
+            uri = "polygon?crs={crs}"
+            l = QgsVectorLayer( uri, 'flood', 'memory')
+            prov = l.dataProvider()
+            for feat in layer:
+                g = QgsGeometry()
+                g.fromWkb( feat.GetGeometryRef().ExportToIsoWkb() )
+                f = QgsFeature()
+                f.setGeometry( g.smooth( self.smooth_iter, self.smooth_offset ) )
+                prov.addFeature( f )
+            l.updateExtents()
+            return l
+
         self._writeMessage('Creating vector flood...')
         #dsImage = self._createDatasetMem( self._reduceArrysFlood() )
         dsImage = self._createDatasetMem( self.arrys_flood[-1] )
@@ -257,24 +287,25 @@ class CanvasFlood():
         ds = ogr.GetDriverByName('MEMORY').CreateDataSource('memData')
         layer = ds.CreateLayer( name='memLayer', srs=dsImage.GetSpatialRef(), geom_type=ogr.wkbPolygon )
         gdal.Polygonize( srcBand=band, maskBand=band, outLayer=layer, iPixValField=-1)
-        
-        crs = self.mapCanvas.mapSettings().destinationCrs().authid()
-        uri = "polygon?crs={crs}"
-        self.polygonLast = QgsVectorLayer( uri, 'flood', 'memory')
-        prov = self.polygonLast.dataProvider()
-        for feat in layer:
-            g = QgsGeometry()
-            g.fromWkb( feat.GetGeometryRef().ExportToIsoWkb() )
-            f = QgsFeature()
-            f.setGeometry( g.smooth( self.smooth_iter, self.smooth_offset ) )
-            prov.addFeature( f )
-        self.polygonLast.updateExtents()
+        self.polygonLast = createQgsVectorLayer( layer )
         ds = None
 
     def createFlood(self):
+        def createQgsVectorLayer():
+            crs = self.mapCanvas.mapSettings().destinationCrs().authid()
+            uri = "point?crs={crs}"
+            l = QgsVectorLayer( uri, 'seed', 'memory')
+            prov = l.dataProvider()
+            f = QgsFeature()
+            f.setGeometry( QgsGeometry.fromPointXY( self.point_map ) )
+            prov.addFeature( f )
+            l.updateExtents()
+            return l
+
         if self.point_map is None:
             return
-        self.mapCanvas.flashGeometries( [ QgsGeometry.fromPointXY( self.point_map ) ] )
+        lyr_seed = createQgsVectorLayer()
+        self.mapCanvas.flashFeatureIds( lyr_seed, [0] )
         self._writeMessage('Creating image flood...')
         self._calculateArryFlood()
 
@@ -286,21 +317,19 @@ class CanvasFlood():
 
         self._polygonizeFlood()
         
-        if self.mapItem:
-            self.mapCanvas.scene().removeItem( self.mapItem )
         if self.existsLink:
             gdal.Unlink( self.filenameMemory )
 
-        self.mapItem = MapItemFlood( self.mapCanvas )
-        layers = [ self.polygonLast]
-        arryLast = self._reduceArrysFloodUntilLast()
-        if arryLast:
-            ds1 = self._createDatasetMem( arryLast )
-            ds2 = gdal.GetDriverByName('GTiff').CreateCopy( self.filenameMemory, ds1 )
-            ds1, ds2 = None, None
-            layers.append( QgsRasterLayer( self.filenameMemory, 'raster', 'gdal') )
-            self.existsLink = True
+        layers = [ lyr_seed, self.polygonLast ]
+        # arryLast = self._reduceArrysFloodUntilLast()
+        # if not arryLast is None:
+        #     ds1 = self._createDatasetMem( arryLast )
+        #     ds2 = gdal.GetDriverByName('GTiff').CreateCopy( self.filenameMemory, ds1 )
+        #     ds1, ds2 = None, None
+        #     layers.append( QgsRasterLayer( self.filenameMemory, 'raster', 'gdal') )
+        #     self.existsLink = True
         self.mapItem.setLayers( layers )
+        self.mapItem.updateCanvas()
         #self.showFlood()
 
     def showFlood(self):
