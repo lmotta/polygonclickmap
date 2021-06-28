@@ -5,7 +5,7 @@ from qgis.PyQt.QtGui import QImage, QColor
 from qgis.core import (
     QgsProject,
     QgsMapLayer, QgsVectorLayer, QgsRasterLayer,
-    QgsGeometry, QgsFeature,
+    QgsGeometry, QgsFeature, QgsPointXY,
     QgsMapSettings, 
     QgsMapRendererParallelJob 
 )
@@ -129,6 +129,10 @@ class ImageCanvas():
         job.waitForFinished()
 
 class CalculateArrayFlood():
+    flood_value = 255
+    flood_out = 0
+    threshFlood = 55
+    threshSieve = 100
     def __init__(self):
         self.flood_value = 255
         self.flood_out = 0
@@ -166,6 +170,31 @@ class CalculateArrayFlood():
         return arry_sieve
 
 
+def createDatasetMem(arry, geoTransform, spatialRef):
+    if len( arry.shape ) == 2:
+        rows, columns = arry.shape
+        bands = 1
+    else:
+        bands, rows, columns = arry.shape
+    data_type = gdal_array.NumericTypeCodeToGDALTypeCode( arry.dtype )
+    ds = gdal.GetDriverByName('MEM').Create('', columns, rows, bands, data_type )
+    if bands == 1:
+        band = ds.GetRasterBand(1)
+        band.WriteArray( arry )
+    else:
+        for b in range( bands ):
+            band = ds.GetRasterBand( b+1 )
+            band.WriteArray( arry[ b ] )
+    ds.SetGeoTransform( geoTransform )
+    ds.SetSpatialRef( spatialRef )
+    return ds
+
+def saveArrayTif(arry, nBand, nodata, geoTransform, spatialRef):
+    ds = gdal.GetDriverByName('GTiff').CreateCopy( FILENAME_FLOOD, createDatasetMem( arry, geoTransform, spatialRef) )
+    ds.GetRasterBand( nBand ).SetNoDataValue( nodata )
+    ds = None
+
+
 class ImageFloodTool(QgsMapTool):
     def __init__(self, iface):
         self.mapCanvas = iface.mapCanvas()
@@ -182,14 +211,14 @@ class ImageFloodTool(QgsMapTool):
         self.point_canvas = None
         self.point_map = None
         self.arrys_flood = []
-        self.polygonLast = None
+        self.polygonFlood = None
         
         self.stylePoylgon = os.path.join( os.path.dirname(__file__), 'polygonflood.qml' )
         self.stylePoint = os.path.join( os.path.dirname(__file__), 'pointflood.qml' )
         self.styleRaster = os.path.join( os.path.dirname(__file__), 'rasterflood.qml' )
         
-        self.filenameMemory = '/vsimem/raster.tif'
-        self.existsLink = False
+        self.filenameRasterFlood = '/vsimem/raster_flood.tif'
+        self.existsLinkRasterFlood = False
 
     def __del_(self):
         self.canvasImage.dataset = None
@@ -215,31 +244,6 @@ class ImageFloodTool(QgsMapTool):
             self.mapItem.enabled = False
             self.mapItem.updateCanvas()
 
-
-    def _createDatasetMem(self, arry):
-        if len( arry.shape ) == 2:
-            rows, columns = arry.shape
-            bands = 1
-        else:
-            bands, rows, columns = arry.shape
-        data_type = gdal_array.NumericTypeCodeToGDALTypeCode( arry.dtype )
-        ds = gdal.GetDriverByName('MEM').Create('', columns, rows, bands, data_type )
-        if bands == 1:
-            band = ds.GetRasterBand(1)
-            band.WriteArray( arry )
-        else:
-            for b in range( bands ):
-                band = ds.GetRasterBand( b+1 )
-                band.WriteArray( arry[ b ] )
-        ds.SetGeoTransform( self.canvasImage.dataset.GetGeoTransform() )
-        ds.SetSpatialRef( self.canvasImage.dataset.GetSpatialRef() )
-        return ds
-
-    def _saveFloodTif(self, arry):
-        ds = gdal.GetDriverByName('GTiff').CreateCopy( FILENAME_FLOOD, self._createDatasetMem( arry ) )
-        ds.GetRasterBand(1).SetNoDataValue( self.flood_out )
-        ds = None
-
     def _reduceArrysFlood(self):
         result = self.arrys_flood[0].copy()
         if len( self.arrys_flood ) == 1:
@@ -259,75 +263,93 @@ class ImageFloodTool(QgsMapTool):
             result[ bool_b ] = self.flood_value
         return result
 
-    def _polygonizeFlood(self):
-        def createQgsVectorLayer(layer):
-            crs = self.mapCanvas.mapSettings().destinationCrs().authid()
-            uri = "polygon?crs={crs}"
-            l = QgsVectorLayer( uri, 'flood', 'memory')
-            prov = l.dataProvider()
-            for feat in layer:
+    def _createQgsMemoryVector(self, name, geomType, data):
+        def addFeaturesPointXY(prov):
+            f = QgsFeature()
+            f.setGeometry( QgsGeometry.fromPointXY( data ) )
+            prov.addFeature( f )
+
+        def addFeaturesLayer(prov):
+            for feat in data:
                 g = QgsGeometry()
                 g.fromWkb( feat.GetGeometryRef().ExportToIsoWkb() )
                 f = QgsFeature()
                 f.setGeometry( g.smooth( self.smooth_iter, self.smooth_offset ) )
                 prov.addFeature( f )
-            l.updateExtents()
-            l.loadNamedStyle( self.stylePoylgon )
-            return l
 
-        #dsImage = self._createDatasetMem( self._reduceArrysFlood() )
-        dsImage = self._createDatasetMem( self.arrys_flood[-1] )
-        band = dsImage.GetRasterBand(1)
+        geomStyles = {
+            'point': self.stylePoint,
+            'polygon': self.stylePoylgon
+        }
+        if not geomType in geomStyles:
+            TypeError(f"Only Geometries '{''.join( geomStyles )}' are allowed")
+
+        crs = self.mapCanvas.mapSettings().destinationCrs().authid()
+        uri = f"{geomType}?crs={crs}"
+        l = QgsVectorLayer( uri, name, 'memory')
+        prov = l.dataProvider()
+        if isinstance( data,  QgsPointXY ):
+            addFeaturesPointXY( prov )
+        elif isinstance( data,  ogr.Layer ):
+             addFeaturesLayer( prov )
+        else:
+            raise TypeError("Only ogr.Layer or QgsPointXY are allowed")
+
+        l.updateExtents()
+        l.loadNamedStyle( geomStyles[ geomType ] )
+        return l
+
+    def _polygonizeFlood(self, arrayFlood):
+        tran = self.canvasImage.dataset.GetGeoTransform()
+        srs = self.canvasImage.dataset.GetSpatialRef()
+        # Raster
+        dsRaster = createDatasetMem( arrayFlood, tran, srs )
+        band = dsRaster.GetRasterBand(1)
+        # Vector
         ds = ogr.GetDriverByName('MEMORY').CreateDataSource('memData')
-        layer = ds.CreateLayer( name='memLayer', srs=dsImage.GetSpatialRef(), geom_type=ogr.wkbPolygon )
+        layer = ds.CreateLayer( name='memLayer', srs=srs, geom_type=ogr.wkbPolygon )
         gdal.Polygonize( srcBand=band, maskBand=band, outLayer=layer, iPixValField=-1)
-        self.polygonLast = createQgsVectorLayer( layer )
+        dsRaster = None
+        #
+        self.polygonFlood = self._createQgsMemoryVector( 'flood', 'polygon', layer )
         ds = None
 
     def createFlood(self):
-        def createQgsVectorLayer():
-            crs = self.mapCanvas.mapSettings().destinationCrs().authid()
-            uri = "point?crs={crs}"
-            l = QgsVectorLayer( uri, 'seed', 'memory')
-            prov = l.dataProvider()
-            f = QgsFeature()
-            f.setGeometry( QgsGeometry.fromPointXY( self.point_map ) )
-            prov.addFeature( f )
-            l.updateExtents()
-            l.loadNamedStyle( self.stylePoint )
-            return l
-
         if self.point_map is None:
             return
         
+        # Populate Arrays flood
         arry = self.canvasImage.dataset.ReadAsArray()[:3] # RGBA: NEED Remove Alpha band(255 for all image)
-        seed = (int(self.point_canvas.x()), int(self.point_canvas.y()) )
+        seed = ( self.point_canvas.x(), self.point_canvas.y() )
         self.arrys_flood.append( self.calcFlood.get( arry, seed) )
 
-        lyr_seed = createQgsVectorLayer()
+        lyr_seed = self._createQgsMemoryVector( 'seed', 'point',  self.point_map )
 
         if DEBUG:
-            # self._saveFloodTif( self.arrys_flood[0] )
-            # if len(self.arrys_flood) > 1:
-            #     self._saveFloodTif( self.arrys_flood[1] )
-            self._saveFloodTif( self._reduceArrysFlood() )
+            tran = self.canvasImage.dataset.GetGeoTransform()
+            sr = self.canvasImage.dataset.GetSpatialRef()
+            # saveArrayTif( self.arrys_flood[0], 1, CalculateArrayFlood.flood_out, tran, sr )
+            saveArrayTif( self._reduceArrysFlood(), 1, CalculateArrayFlood.flood_out, tran, sr )
 
-        self._polygonizeFlood()
+        self._polygonizeFlood( self.arrys_flood[-1] ) # Last
+        # self._polygonizeFlood( self._reduceArrysFlood() ) # All(reduce)
+        # self._polygonizeFlood( self._reduceArrysFloodUntilLast() ) # All(reduce) until last
         
-        if self.existsLink:
-            gdal.Unlink( self.filenameMemory )
 
-        layers = [ lyr_seed, self.polygonLast ]
+        layers = [ lyr_seed, self.polygonFlood ]
         # arryLast = self._reduceArrysFloodUntilLast()
         # if not arryLast is None:
-        #     ds1 = self._createDatasetMem( arryLast )
-        #     ds2 = gdal.GetDriverByName('GTiff').CreateCopy( self.filenameMemory, ds1 )
+            # if self.existsLinkRasterFlood:
+            #     gdal.Unlink( self.filenameRasterFlood )
+        #     tran = self.canvasImage.dataset.GetGeoTransform()
+        #     sr = self.canvasImage.dataset.GetSpatialRef()
+        #     ds1 = createDatasetMem( arryLast, tran, sr )
+        #     ds2 = gdal.GetDriverByName('GTiff').CreateCopy( self.filenameRasterFlood, ds1 )
         #     ds1, ds2 = None, None
-        #     layers.append( QgsRasterLayer( self.filenameMemory, 'raster', 'gdal') )
-        #     self.existsLink = True
+        #     layers.append( QgsRasterLayer( self.filenameRasterFlood, 'raster', 'gdal') )
+        #     self.existsLinkRasterFlood = True
         self.mapItem.setLayers( layers )
         self.mapItem.updateCanvas()
-        #self.showFlood()
 
     def removeLastFlood(self):
         if not len( self.arrys_flood ):
@@ -337,7 +359,6 @@ class ImageFloodTool(QgsMapTool):
             self.geoms_flood *= 0
             return
         self._polygonizeFlood()
-        self.showFlood()
 
 
 def saveShp(geoms, srs):
@@ -368,7 +389,6 @@ def saveShp(geoms, srs):
 #cf = CanvasFlood()
 #cf.active()
 #cf.createFlood() # Change tolerance
-#cf.showFlood() # View last flood
 #cf.removeLastFlood() # Remove last flood
 
 FILENAME_IMAGE = '/home/lmotta/data/work/AAA_IMAGE.tif'
