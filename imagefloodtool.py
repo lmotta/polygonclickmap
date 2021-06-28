@@ -37,7 +37,8 @@ class MapItemFlood(QgsMapCanvasItem):
             self.image = image
 
         settings = QgsMapSettings( self.mapCanvas.mapSettings() )
-        settings.setLayers( self.layers )
+        if len( self.layers ):
+            settings.setLayers( self.layers )
         settings.setBackgroundColor( QColor( Qt.transparent ) )
         
         self.setRect( self.mapCanvas.extent() )
@@ -101,10 +102,6 @@ class ImageCanvas():
         ba = None
         #
         self.dataset = ds_mem
-        if DEBUG:
-            #image.save( FILENAME_IMAGE, 'TIFF', 100)
-            _ds = gdal.GetDriverByName('GTiff').CreateCopy( FILENAME_ARRAY, ds_mem)
-            _ds = None
 
     def process(self):
         def finished():
@@ -128,17 +125,12 @@ class ImageCanvas():
         job.finished.connect( finished) 
         job.waitForFinished()
 
+
 class CalculateArrayFlood():
     flood_value = 255
     flood_out = 0
     threshFlood = 55
     threshSieve = 100
-    def __init__(self):
-        self.flood_value = 255
-        self.flood_out = 0
-        self.threshFlood = 55
-        self.threshSieve = 100
-
     def get(self, arraySource, seed):
         as_image = (1,2,0) # Rasterio.plot.reshape_as_image - rows, columns, bands
         as_raster = (2,0,1) # Rasterio.plot.reshape_as_raster - bands, rows, columns
@@ -170,7 +162,7 @@ class CalculateArrayFlood():
         return arry_sieve
 
 
-def createDatasetMem(arry, geoTransform, spatialRef):
+def createDatasetMem(arry, geoTransform, spatialRef, nodata=None):
     if len( arry.shape ) == 2:
         rows, columns = arry.shape
         bands = 1
@@ -181,18 +173,17 @@ def createDatasetMem(arry, geoTransform, spatialRef):
     if bands == 1:
         band = ds.GetRasterBand(1)
         band.WriteArray( arry )
+        if not nodata is None:
+            band.SetNoDataValue( nodata )
     else:
         for b in range( bands ):
             band = ds.GetRasterBand( b+1 )
             band.WriteArray( arry[ b ] )
+            if not nodata is None:
+                band.SetNoDataValue( nodata )
     ds.SetGeoTransform( geoTransform )
     ds.SetSpatialRef( spatialRef )
     return ds
-
-def saveArrayTif(arry, nBand, nodata, geoTransform, spatialRef):
-    ds = gdal.GetDriverByName('GTiff').CreateCopy( FILENAME_FLOOD, createDatasetMem( arry, geoTransform, spatialRef) )
-    ds.GetRasterBand( nBand ).SetNoDataValue( nodata )
-    ds = None
 
 
 class ImageFloodTool(QgsMapTool):
@@ -211,7 +202,6 @@ class ImageFloodTool(QgsMapTool):
         self.point_canvas = None
         self.point_map = None
         self.arrys_flood = []
-        self.polygonFlood = None
         
         self.stylePoylgon = os.path.join( os.path.dirname(__file__), 'polygonflood.qml' )
         self.stylePoint = os.path.join( os.path.dirname(__file__), 'pointflood.qml' )
@@ -244,23 +234,40 @@ class ImageFloodTool(QgsMapTool):
             self.mapItem.enabled = False
             self.mapItem.updateCanvas()
 
+    def keyReleaseEvent(self, e):
+        def setMapItem(layers=[]):
+            self.mapItem.setLayers( layers )
+            self.mapItem.updateCanvas()
+
+        if e.key() == Qt.Key_Backspace:
+            if len( self.arrys_flood ):
+                self.arrys_flood.pop()
+                if not len( self.arrys_flood ):
+                    setMapItem()
+                    return
+                arryFlood = self._reduceArrysFlood()
+                if arryFlood is None:
+                    setMapItem()
+                    return
+                setMapItem( [ self._rasterFlood( arryFlood) ] )
+
     def _reduceArrysFlood(self):
         result = self.arrys_flood[0].copy()
         if len( self.arrys_flood ) == 1:
             return result
         for arry in self.arrys_flood[1:]:
-            bool_b = ( arry == self.flood_value )
-            result[ bool_b ] = self.flood_value
+            bool_b = ( arry == CalculateArrayFlood.flood_value )
+            result[ bool_b ] = CalculateArrayFlood.flood_value
         return result
 
     def _reduceArrysFloodUntilLast(self):
         result = self.arrys_flood[0].copy()
         total = len( self.arrys_flood )
-        if total == 1:
+        if total < 2 :
             return None
-        for arry in self.arrys_flood[1:total]:
-            bool_b = ( arry == self.flood_value )
-            result[ bool_b ] = self.flood_value
+        for arry in self.arrys_flood[1:total-1]:
+            bool_b = ( arry == CalculateArrayFlood.flood_value )
+            result[ bool_b ] = CalculateArrayFlood.flood_value
         return result
 
     def _createQgsMemoryVector(self, name, geomType, data):
@@ -299,6 +306,22 @@ class ImageFloodTool(QgsMapTool):
         l.loadNamedStyle( geomStyles[ geomType ] )
         return l
 
+    def _rasterFlood(self, arrayFlood):
+        if self.existsLinkRasterFlood:
+            gdal.Unlink( self.filenameRasterFlood )
+        tran = self.canvasImage.dataset.GetGeoTransform()
+        sr = self.canvasImage.dataset.GetSpatialRef()
+        ds1 = createDatasetMem( arrayFlood, tran, sr, CalculateArrayFlood.flood_out )
+        if DEBUG:
+            ds_ = gdal.GetDriverByName('GTiff').CreateCopy( FILENAME_FLOOD, ds1 )
+            ds_ = None
+        ds2 = gdal.GetDriverByName('GTiff').CreateCopy( self.filenameRasterFlood, ds1 )
+        ds1, ds2 = None, None
+        rl = QgsRasterLayer( self.filenameRasterFlood, 'raster', 'gdal')
+        rl.loadNamedStyle( self.styleRaster )
+        self.existsLinkRasterFlood = True
+        return rl
+
     def _polygonizeFlood(self, arrayFlood):
         tran = self.canvasImage.dataset.GetGeoTransform()
         srs = self.canvasImage.dataset.GetSpatialRef()
@@ -311,8 +334,9 @@ class ImageFloodTool(QgsMapTool):
         gdal.Polygonize( srcBand=band, maskBand=band, outLayer=layer, iPixValField=-1)
         dsRaster = None
         #
-        self.polygonFlood = self._createQgsMemoryVector( 'flood', 'polygon', layer )
+        polygonFlood = self._createQgsMemoryVector( 'flood', 'polygon', layer )
         ds = None
+        return polygonFlood
 
     def createFlood(self):
         if self.point_map is None:
@@ -325,29 +349,16 @@ class ImageFloodTool(QgsMapTool):
 
         lyr_seed = self._createQgsMemoryVector( 'seed', 'point',  self.point_map )
 
-        if DEBUG:
-            tran = self.canvasImage.dataset.GetGeoTransform()
-            sr = self.canvasImage.dataset.GetSpatialRef()
-            # saveArrayTif( self.arrys_flood[0], 1, CalculateArrayFlood.flood_out, tran, sr )
-            saveArrayTif( self._reduceArrysFlood(), 1, CalculateArrayFlood.flood_out, tran, sr )
-
-        self._polygonizeFlood( self.arrys_flood[-1] ) # Last
+        # self._polygonizeFlood( self.arrys_flood[-1] ) # Last
         # self._polygonizeFlood( self._reduceArrysFlood() ) # All(reduce)
         # self._polygonizeFlood( self._reduceArrysFloodUntilLast() ) # All(reduce) until last
-        
 
-        layers = [ lyr_seed, self.polygonFlood ]
-        # arryLast = self._reduceArrysFloodUntilLast()
-        # if not arryLast is None:
-            # if self.existsLinkRasterFlood:
-            #     gdal.Unlink( self.filenameRasterFlood )
-        #     tran = self.canvasImage.dataset.GetGeoTransform()
-        #     sr = self.canvasImage.dataset.GetSpatialRef()
-        #     ds1 = createDatasetMem( arryLast, tran, sr )
-        #     ds2 = gdal.GetDriverByName('GTiff').CreateCopy( self.filenameRasterFlood, ds1 )
-        #     ds1, ds2 = None, None
-        #     layers.append( QgsRasterLayer( self.filenameRasterFlood, 'raster', 'gdal') )
-        #     self.existsLinkRasterFlood = True
+        # layers = [ lyr_seed, self._polygonizeFlood() ]
+        layers = [ lyr_seed ]
+        #arryFlood = self._reduceArrysFloodUntilLast()
+        arryFlood = self._reduceArrysFlood()
+        if not arryFlood is None:
+            layers.append( self._rasterFlood( arryFlood) )
         self.mapItem.setLayers( layers )
         self.mapItem.updateCanvas()
 
