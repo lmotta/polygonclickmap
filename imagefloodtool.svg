@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg width="24" height="24" xmlns="http://www.w3.org/2000/svg" xmlns:bx="https://boxy-svg.com">
+  <g>
+    <title>background</title>
+    <rect fill="none" id="canvas_background" height="402" width="582" y="-1" x="-1"/>
+  </g>
+  <rect stroke-dasharray="2,2" id="svg_13" height="14.224" width="17.241" y="1.103" x="1.116" stroke-width="1.5" stroke="#4c4c4c" fill="none"/>
+  <path id="svg_2" opacity="0.8" fill="#e6e6e6" stroke="#505050" stroke-width="0.752183" stroke-linecap="round" stroke-linejoin="round" stroke-dashoffset="7" d="M 22.5 9.498 C 22.5 13.917 18.918 17.498 14.5 17.498 C 10.082 17.498 6.5 13.917 6.5 9.498 C 6.5 5.08 10.082 1.498 14.5 1.498 C 18.918 1.498 22.5 5.08 22.5 9.498 Z"/>
+  <path id="svg_3" opacity="0.7" fill-rule="evenodd" fill="#fcffff" d="M 10 5 C 12 2 14.442 1.602 16 3 C 17.558 4.398 14 4 12 6 C 10 8 12 12 10 12 C 8 12 8 8 10 5 Z"/>
+  <path id="svg_5" stroke-linejoin="round" stroke-linecap="round" stroke="#fcffff" opacity="0.5" d="M 2 21 L 6 17"/>
+  <g style="" transform="matrix(0.657318, 0, 0, 0.670367, 2.135933, -43.741829)">
+    <path style="fill: rgb(216, 216, 216); stroke: rgb(0, 0, 0);" d="M 19.438 81.653 C 18.293 79.363 28.479 90.013 29.16 91.375" transform="matrix(0.99863, -0.052336, 0.052336, 0.99863, -4.486145, 1.38771)"/>
+    <path d="M 144.445 211.111 L 150.459 221.528 L 138.431 221.528 L 144.445 211.111 Z" style="fill: rgb(15, 14, 14); paint-order: stroke markers;" transform="matrix(0.642786, -0.766045, 0.766045, 0.642786, -241.550888, 50.116886)" bx:shape="triangle 138.431 211.111 12.028 10.417 0.5 0 1@acb52f78"/>
+  </g>
+</svg>

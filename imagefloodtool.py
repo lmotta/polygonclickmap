@@ -9,9 +9,7 @@ from qgis.core import (
     QgsMapSettings, 
     QgsMapRendererParallelJob 
 )
-from qgis.gui import QgsMapToolEmitPoint, QgsMapCanvasItem
-
-from qgis import utils as QgsUtils
+from qgis.gui import QgsMapTool, QgsMapCanvasItem 
 
 from osgeo import gdal, gdal_array, ogr, osr
 
@@ -23,14 +21,13 @@ import os, time
 
 
 class MapItemFlood(QgsMapCanvasItem):
-    def __init__(self, canvas):
-        super().__init__( canvas )
-        self.image = None
-        self.colorTransparence = QColor(0, 0, 0, 0)
+    def __init__(self, mapCanvas):
+        super().__init__( mapCanvas )
+        self.mapCanvas = mapCanvas
         self.enabled = True
         self.layers = None
-        self.mapCanvas = canvas
-      
+        self.image = None
+
     def _setImage(self):
         def finished():
             image = job.renderedImage()
@@ -38,11 +35,6 @@ class MapItemFlood(QgsMapCanvasItem):
                 image = image.scaled( image.width() / 3, image.height() / 3 )
                 image = image.convertToFormat( QImage.Format_Indexed8, Qt.OrderedDither | Qt.OrderedAlphaDither )
             self.image = image
-
-        if not self.enabled:
-            self.image = QImage( 1, 1, QImage.Format_RGB32 )
-            self.image.fill( self.colorTransparence )
-            return
 
         settings = QgsMapSettings( self.mapCanvas.mapSettings() )
         settings.setLayers( self.layers )
@@ -57,6 +49,13 @@ class MapItemFlood(QgsMapCanvasItem):
     def paint(self, painter, *args): # NEED *args for   WINDOWS!
         if not self.layers:
             return
+
+        if not self.enabled:
+            image = QImage( 1, 1, QImage.Format_RGB32 )
+            image.fill( QColor( Qt.transparent ) )
+            painter.drawImage( image.rect(), image )
+            return
+
         self._setImage()
         painter.drawImage( self.image.rect(), self.image )
         
@@ -65,7 +64,7 @@ class MapItemFlood(QgsMapCanvasItem):
         self.enabled = True
 
 
-class CanvasDatasetImage():
+class ImageCanvas():
     def __init__(self, canvas):
         self.root = QgsProject.instance().layerTreeRoot()
         self.mapCanvas = canvas
@@ -129,78 +128,22 @@ class CanvasDatasetImage():
         job.finished.connect( finished) 
         job.waitForFinished()
 
-
-class CanvasFlood():
+class CalculateArrayFlood():
     def __init__(self):
-        self.mapCanvas = QgsUtils.iface.mapCanvas()
-        self.statusBar = QgsUtils.iface.mainWindow().statusBar()
-        self.extent = None
-        self.transform = self.mapCanvas.getCoordinateTransform().transform
-        self.mapCanvasImage = CanvasDatasetImage( self.mapCanvas )
-        self.mapItem = MapItemFlood( self.mapCanvas )
-
-        self.pointTool = QgsMapToolEmitPoint( self.mapCanvas )
-        self.pointTool.canvasClicked.connect( self._canvasClicked )
-
         self.flood_value = 255
         self.flood_out = 0
         self.threshFlood = 55
         self.threshSieve = 100
 
-        self.smooth_iter = 1
-        self.smooth_offset  = 0.25
-
-        self.point_canvas = None
-        self.point_map = None
-        self.arrys_flood = []
-        self.polygonLast = None
-        
-        self.filenameMemory = '/vsimem/raster.tif'
-        self.existsLink = False
-
-    def __del_(self):
-        self.mapCanvasImage.dataset = None
-
-    def _writeMessage(self, message):
-        self.statusBar.showMessage (f"Flood: {message}")
-
-    def _canvasClicked(self, point, button):
-        def createFlood():
-            self.point_map = point
-            self.point_canvas = self.transform( point )
-            if not self.extent == self.mapCanvas.extent():
-                self._writeMessage('Creating canvas image...')
-                self.arrys_flood *= 0
-                self.mapCanvasImage.process()
-                if not self.mapCanvasImage.dataset:
-                    self._writeMessage('Empty image!')
-                    return
-                self.extent = self.mapCanvas.extent()
-            self.createFlood()
-
-        def toggleMapItem():
-            self.mapItem.enabled = not self.mapItem.enabled
-            self.mapItem.updateCanvas()
-            #self.mapCanvas.refresh()
-
-        actions = {
-            Qt.LeftButton: createFlood,
-            #Qt.RightButton: self.removeLastFlood
-            Qt.RightButton: toggleMapItem 
-        }
-        actions[ button ]()
-
-    def _calculateArryFlood(self):
+    def get(self, arraySource, seed):
         as_image = (1,2,0) # Rasterio.plot.reshape_as_image - rows, columns, bands
         as_raster = (2,0,1) # Rasterio.plot.reshape_as_raster - bands, rows, columns
         #
-        arry = self.mapCanvasImage.dataset.ReadAsArray()[:3] # RGBA: NEED Remove Alpha band(255 for all image)
-        n_bands = arry.shape[0]
-        arry = np.transpose( arry, as_image )
+        n_bands = arraySource.shape[0]
+        arry = np.transpose( arraySource, as_image )
         img_flood = Image.fromarray( arry )
         l_flood_value = tuple( n_bands * [ self.flood_value ] )
-        x, y = int(self.point_canvas.x()), int(self.point_canvas.y())
-        ImageDraw.floodfill( img_flood, (x, y), l_flood_value, thresh=self.threshFlood )
+        ImageDraw.floodfill( img_flood, seed, l_flood_value, thresh=self.threshFlood )
         # Change outside flood
         arry = np.array( img_flood )
         arry = np.transpose( arry, as_raster )
@@ -220,7 +163,58 @@ class CanvasFlood():
             bool_b = ( arry_band == self.flood_value )
             arry_sieve[ bool_s * bool_b ] = self.flood_value
             arry_sieve[ ~(bool_s * bool_b) ] = self.flood_out
-        self.arrys_flood.append( arry_sieve )
+        return arry_sieve
+
+
+class ImageFloodTool(QgsMapTool):
+    def __init__(self, iface):
+        self.mapCanvas = iface.mapCanvas()
+        super().__init__( self.mapCanvas )
+        self.extent = None
+        self.transform = self.mapCanvas.getCoordinateTransform().transform
+        self.canvasImage = ImageCanvas( self.mapCanvas )
+        self.mapItem = MapItemFlood( self.mapCanvas )
+
+        self.calcFlood = CalculateArrayFlood()
+        self.smooth_iter = 1
+        self.smooth_offset  = 0.25
+
+        self.point_canvas = None
+        self.point_map = None
+        self.arrys_flood = []
+        self.polygonLast = None
+        
+        self.stylePoylgon = os.path.join( os.path.dirname(__file__), 'polygonflood.qml' )
+        self.stylePoint = os.path.join( os.path.dirname(__file__), 'pointflood.qml' )
+        self.styleRaster = os.path.join( os.path.dirname(__file__), 'rasterflood.qml' )
+        
+        self.filenameMemory = '/vsimem/raster.tif'
+        self.existsLink = False
+
+    def __del_(self):
+        self.canvasImage.dataset = None
+
+    def canvasReleaseEvent(self, e):
+        if e.button() == Qt.RightButton:
+            self.mapItem.enabled = True
+            self.mapItem.updateCanvas()
+            return
+
+        self.point_map = e.mapPoint()
+        self.point_canvas = e.originalPixelPoint ()
+        if not self.extent == self.mapCanvas.extent():
+            self.arrys_flood *= 0
+            self.canvasImage.process()
+            if not self.canvasImage.dataset:
+                return
+            self.extent = self.mapCanvas.extent()
+        self.createFlood()
+
+    def canvasPressEvent(self, e):
+        if e.button() == Qt.RightButton:
+            self.mapItem.enabled = False
+            self.mapItem.updateCanvas()
+
 
     def _createDatasetMem(self, arry):
         if len( arry.shape ) == 2:
@@ -237,8 +231,8 @@ class CanvasFlood():
             for b in range( bands ):
                 band = ds.GetRasterBand( b+1 )
                 band.WriteArray( arry[ b ] )
-        ds.SetGeoTransform( self.mapCanvasImage.dataset.GetGeoTransform() )
-        ds.SetSpatialRef( self.mapCanvasImage.dataset.GetSpatialRef() )
+        ds.SetGeoTransform( self.canvasImage.dataset.GetGeoTransform() )
+        ds.SetSpatialRef( self.canvasImage.dataset.GetSpatialRef() )
         return ds
 
     def _saveFloodTif(self, arry):
@@ -278,9 +272,9 @@ class CanvasFlood():
                 f.setGeometry( g.smooth( self.smooth_iter, self.smooth_offset ) )
                 prov.addFeature( f )
             l.updateExtents()
+            l.loadNamedStyle( self.stylePoylgon )
             return l
 
-        self._writeMessage('Creating vector flood...')
         #dsImage = self._createDatasetMem( self._reduceArrysFlood() )
         dsImage = self._createDatasetMem( self.arrys_flood[-1] )
         band = dsImage.GetRasterBand(1)
@@ -300,14 +294,17 @@ class CanvasFlood():
             f.setGeometry( QgsGeometry.fromPointXY( self.point_map ) )
             prov.addFeature( f )
             l.updateExtents()
+            l.loadNamedStyle( self.stylePoint )
             return l
 
         if self.point_map is None:
             return
+        
+        arry = self.canvasImage.dataset.ReadAsArray()[:3] # RGBA: NEED Remove Alpha band(255 for all image)
+        seed = (int(self.point_canvas.x()), int(self.point_canvas.y()) )
+        self.arrys_flood.append( self.calcFlood.get( arry, seed) )
+
         lyr_seed = createQgsVectorLayer()
-        self.mapCanvas.flashFeatureIds( lyr_seed, [0] )
-        self._writeMessage('Creating image flood...')
-        self._calculateArryFlood()
 
         if DEBUG:
             # self._saveFloodTif( self.arrys_flood[0] )
@@ -332,13 +329,6 @@ class CanvasFlood():
         self.mapItem.updateCanvas()
         #self.showFlood()
 
-    def showFlood(self):
-        if not len( self.geoms_flood ):
-            return
-        self.mapCanvas.flashGeometries( self.geoms_flood )
-        self.statusBar.clearMessage()
-        #saveShp( geoms, self.mapCanvasImage.dataset.GetSpatialRef() )
-
     def removeLastFlood(self):
         if not len( self.arrys_flood ):
             return
@@ -348,10 +338,6 @@ class CanvasFlood():
             return
         self._polygonizeFlood()
         self.showFlood()
-        
-    def active(self):
-        self.mapCanvas.setMapTool( self.pointTool )
-        self._writeMessage('Actived')
 
 
 def saveShp(geoms, srs):
@@ -379,8 +365,8 @@ def saveShp(geoms, srs):
     ds_out = None
 
 
-cf = CanvasFlood()
-cf.active()
+#cf = CanvasFlood()
+#cf.active()
 #cf.createFlood() # Change tolerance
 #cf.showFlood() # View last flood
 #cf.removeLastFlood() # Remove last flood
