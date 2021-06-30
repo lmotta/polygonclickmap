@@ -2,7 +2,7 @@
 """
 /***************************************************************************
 Name                 : Image flood tool
-Description          : Plugin for create polygon from the image.
+Description          : Plugin for create polygon from the image using flood algorithm.
 Date                 : July, 2021
 copyright            : (C) 2021 by Luiz Motta
 email                : motta.luiz@gmail.com
@@ -48,7 +48,7 @@ class ImageFloodToolPlugin(QObject):
         self.tool = ImageFloodTool( iface )
 
     def initGui(self):
-        title = "Create polygon from image"
+        title = "Create polygon from image using flood algorithm"
         icon = QIcon( os.path.join( os.path.dirname(__file__), 'imagefloodtool.svg' ) )
         self.action = QAction( icon, title, self.iface.mainWindow() )
         self.action.setObjectName( "MapItemImageFlood" )
