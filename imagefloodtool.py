@@ -190,8 +190,8 @@ class ImageFloodTool(QgsMapTool):
     def __init__(self, iface):
         self.mapCanvas = iface.mapCanvas()
         super().__init__( self.mapCanvas )
+        self.statusBar = iface.mainWindow().statusBar()
         self.extent = None
-        self.transform = self.mapCanvas.getCoordinateTransform().transform
         self.canvasImage = ImageCanvas( self.mapCanvas )
         self.mapItem = MapItemFlood( self.mapCanvas )
 
@@ -202,6 +202,7 @@ class ImageFloodTool(QgsMapTool):
         self.point_canvas = None
         self.point_map = None
         self.arrys_flood = []
+        self.arrys_flood_delete = []
         
         self.stylePoylgon = os.path.join( os.path.dirname(__file__), 'polygonflood.qml' )
         self.stylePoint = os.path.join( os.path.dirname(__file__), 'pointflood.qml' )
@@ -222,6 +223,7 @@ class ImageFloodTool(QgsMapTool):
         self.point_map = e.mapPoint()
         self.point_canvas = e.originalPixelPoint ()
         if not self.extent == self.mapCanvas.extent():
+            # NEED ASK IF ADDED IN VECTOR LAYER!
             self.arrys_flood *= 0
             self.canvasImage.process()
             if not self.canvasImage.dataset:
@@ -235,40 +237,56 @@ class ImageFloodTool(QgsMapTool):
             self.mapItem.updateCanvas()
 
     def keyReleaseEvent(self, e):
-        def setMapItem(layers=[]):
-            self.mapItem.setLayers( layers )
+        def setMapItem(existsFlood=True):
+            if existsFlood:
+                arryFlood = self._reduceArrysFlood()
+                self.mapItem.setLayers([ self._rasterFlood( arryFlood ) ] )
+            else:
+                self.mapItem.setLayers([])
             self.mapItem.updateCanvas()
 
-        if e.key() == Qt.Key_Backspace:
-            if len( self.arrys_flood ):
-                self.arrys_flood.pop()
-                if not len( self.arrys_flood ):
-                    setMapItem()
-                    return
-                arryFlood = self._reduceArrysFlood()
-                if arryFlood is None:
-                    setMapItem()
-                    return
-                setMapItem( [ self._rasterFlood( arryFlood) ] )
+        key = e.key()
+        if not key in( Qt.Key_D, Qt.Key_U ): # Delete, Undo
+            return
+
+        # if not len( self.arrys_flood ):
+        #     self._writeMessage('0 images')
+        #     setMapItem(False)
+        #     return
+
+        if e.key() == Qt.Key_D:
+            if not len( self.arrys_flood ):
+                return
+            self.arrys_flood_delete.append( self.arrys_flood.pop() )
+            total = len( self.arrys_flood )
+            self._writeMessage(f"{total} images")
+            setMapItem( total > 0 )
+            return
+
+        if e.key() == Qt.Key_U and len( self.arrys_flood_delete ):
+            self.arrys_flood.append( self.arrys_flood_delete.pop() )
+            self._writeMessage(f"{len( self.arrys_flood )} images")
+            setMapItem()
+
+    def _writeMessage(self, message):
+        self.statusBar.showMessage (f"Flood: {message}")
 
     def _reduceArrysFlood(self):
         result = self.arrys_flood[0].copy()
-        if len( self.arrys_flood ) == 1:
-            return result
-        for arry in self.arrys_flood[1:]:
+        for arry in self.arrys_flood[ 1:]:
             bool_b = ( arry == CalculateArrayFlood.flood_value )
             result[ bool_b ] = CalculateArrayFlood.flood_value
         return result
 
-    def _reduceArrysFloodUntilLast(self):
-        result = self.arrys_flood[0].copy()
-        total = len( self.arrys_flood )
-        if total < 2 :
-            return None
-        for arry in self.arrys_flood[1:total-1]:
-            bool_b = ( arry == CalculateArrayFlood.flood_value )
-            result[ bool_b ] = CalculateArrayFlood.flood_value
-        return result
+    # def _reduceArrysFloodUntilLast(self):
+    #     result = self.arrys_flood[0].copy()
+    #     total = len( self.arrys_flood )
+    #     if total < 2 :
+    #         return None
+    #     for arry in self.arrys_flood[1:total-1]:
+    #         bool_b = ( arry == CalculateArrayFlood.flood_value )
+    #         result[ bool_b ] = CalculateArrayFlood.flood_value
+    #     return result
 
     def _createQgsMemoryVector(self, name, geomType, data):
         def addFeaturesPointXY(prov):
@@ -345,32 +363,21 @@ class ImageFloodTool(QgsMapTool):
         # Populate Arrays flood
         arry = self.canvasImage.dataset.ReadAsArray()[:3] # RGBA: NEED Remove Alpha band(255 for all image)
         seed = ( self.point_canvas.x(), self.point_canvas.y() )
-        self.arrys_flood.append( self.calcFlood.get( arry, seed) )
+        aryFlood = self.calcFlood.get( arry, seed)
+        totalPixels = ( aryFlood == self.calcFlood.flood_value ).sum().item()
+        if totalPixels:
+            self.arrys_flood.append( aryFlood )
+            self._writeMessage(f"{ len( self.arrys_flood ) } images - Last image added {totalPixels} pixels")
+        else:
+            self._writeMessage(f"{ len( self.arrys_flood ) } images - Not added images( no pixels found)")
 
         lyr_seed = self._createQgsMemoryVector( 'seed', 'point',  self.point_map )
-
-        # self._polygonizeFlood( self.arrys_flood[-1] ) # Last
-        # self._polygonizeFlood( self._reduceArrysFlood() ) # All(reduce)
-        # self._polygonizeFlood( self._reduceArrysFloodUntilLast() ) # All(reduce) until last
-
-        # layers = [ lyr_seed, self._polygonizeFlood() ]
-        layers = [ lyr_seed ]
-        #arryFlood = self._reduceArrysFloodUntilLast()
-        arryFlood = self._reduceArrysFlood()
-        if not arryFlood is None:
-            layers.append( self._rasterFlood( arryFlood) )
-        self.mapItem.setLayers( layers )
+        if len( self.arrys_flood ):
+            arryFlood = self._reduceArrysFlood()
+            self.mapItem.setLayers( [ lyr_seed,  self._rasterFlood( arryFlood ) ] )
+        else:
+            self.mapItem.setLayers( [ lyr_seed ] )
         self.mapItem.updateCanvas()
-
-    def removeLastFlood(self):
-        if not len( self.arrys_flood ):
-            return
-        self.arrys_flood.pop()
-        if not len( self.arrys_flood ):
-            self.geoms_flood *= 0
-            return
-        self._polygonizeFlood()
-
 
 def saveShp(geoms, srs):
     driver = ogr.GetDriverByName('ESRI Shapefile')
