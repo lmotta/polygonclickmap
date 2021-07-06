@@ -8,6 +8,7 @@ from qgis.core import (
     QgsMapLayer, QgsVectorLayer, QgsRasterLayer,
     QgsGeometry, QgsFeature, QgsPointXY,
     QgsMapSettings, 
+    QgsCoordinateReferenceSystem, QgsCoordinateTransform,
     QgsMapRendererParallelJob 
 )
 from qgis.gui import QgsMapTool, QgsMapCanvasItem 
@@ -15,10 +16,10 @@ from qgis.gui import QgsMapTool, QgsMapCanvasItem
 from osgeo import gdal, gdal_array, ogr, osr
 
 from PIL import Image, ImageDraw
-
 import numpy as np
+from scipy import ndimage
 
-import os, time
+import os
 
 
 class MapItemFlood(QgsMapCanvasItem):
@@ -72,6 +73,9 @@ class ImageCanvas():
         self.mapCanvas = canvas
         #
         self.dataset = None
+        self.crs = None
+        self.extent = None
+        self.rasters = None
 
     def _setDataset(self, image):
         def setGeoreference(ds):
@@ -104,6 +108,9 @@ class ImageCanvas():
         #
         self.dataset = ds_mem
 
+    def _rastersCanvas(self):
+        return [ l for l in self.root.checkedLayers() if not l is None and l.type() == QgsMapLayer.RasterLayer ]
+
     def process(self):
         def finished():
             image = job.renderedImage()
@@ -114,9 +121,11 @@ class ImageCanvas():
             self._setDataset( image )
 
         self.dataset = None
-        rasters = [ l for l in self.root.checkedLayers() if not l is None and l.type() == QgsMapLayer.RasterLayer ]
+        rasters = self._rastersCanvas()
         if not len( rasters ):
             return
+        self.extent = self.mapCanvas.extent()
+        self.rasters = rasters
         
         settings = QgsMapSettings( self.mapCanvas.mapSettings() )
         settings.setBackgroundColor( QColor( Qt.transparent ) )
@@ -126,10 +135,14 @@ class ImageCanvas():
         job.finished.connect( finished) 
         job.waitForFinished()
 
+    def changedCanvas(self):
+        return not ( self.rasters == self._rastersCanvas() and self.extent == self.mapCanvas.extent() )
+
 
 class CalculateArrayFlood():
     def __init__(self):
-        self.flood_value = 255
+        self.flood_value = None # Calculate when read image
+        self.flood_value_color = 255
         self.flood_out = 0
         self.threshFlood = 10 # 0 .. 255
         self.threshSieve = 100
@@ -151,23 +164,27 @@ class CalculateArrayFlood():
         arry[ bool_out ] = self.flood_out
         # Sieve
         ds = gdal_array.OpenArray( arry ) # Read only
-        ds = gdal.GetDriverByName('MEM').CreateCopy('', ds )
-        band_sieve = ds.GetRasterBand(1)
+        dsSieve = gdal.GetDriverByName('MEM').CreateCopy('', ds )
+        ds = None
+        band_sieve = dsSieve.GetRasterBand(1)
         gdal.SieveFilter( srcBand=band_sieve, maskBand=None, dstBand=band_sieve, threshold=self.threshSieve, connectedness=8 )
         arry_sieve = band_sieve.ReadAsArray()
-        for b in range( 1, ds.RasterCount ):
-            band = ds.GetRasterBand( b+1 )
+        for b in range( 1, dsSieve.RasterCount ):
+            band = dsSieve.GetRasterBand( b+1 )
             gdal.SieveFilter( srcBand=band, maskBand=None, dstBand=band, threshold=self.threshSieve, connectedness=8 )
             arry_band = band.ReadAsArray()
             bool_s = ( arry_sieve == self.flood_value )
             bool_b = ( arry_band == self.flood_value )
             arry_sieve[ bool_s * bool_b ] = self.flood_value
             arry_sieve[ ~(bool_s * bool_b) ] = self.flood_out
+        dsSieve = None
+
+        arry_sieve[ arry_sieve == self.flood_value ] = self.flood_value_color
         return arry_sieve
 
     def getThresholdFlood(self, point1, point2):
         minDelta = 1
-        maxDelta = 255
+        maxDelta = 254
         delta = point2 - point1
         dX, dY = delta.x(), delta.y()
         delta = dX if abs( dX) > abs( dY ) else -1*dY
@@ -212,10 +229,18 @@ class ImageFloodTool(QgsMapTool):
             return lbl
 
         def activated():
+            self.lblThreshFlood = createLabelFlood()
+            self.lblMessageFlood = createLabelFlood()
             self.statusBar.addPermanentWidget( self.lblMessageFlood, 0)
             self.lblMessageFlood.setText(f"Flood: {len( self.arrys_flood  )} images")
             self.statusBar.addPermanentWidget( self.lblThreshFlood, 0)
-            self.lblThreshFlood.setText(f"Treshold: {self.calcFlood.threshFlood} pixels")
+            self.lblThreshFlood.setText(f"Treshold: {self.calcFlood.threshFlood} RGB")
+
+            if self.layerFlood is None:
+                self.layerFlood = QgsVectorLayer( 'Polygon?crs=EPSG:4326', 'flood', 'memory')
+                self.project.addMapLayer( self.layerFlood )
+                self.layerFlood.loadNamedStyle( self.stylePoylgon )
+
 
         def deactivated():
             self.statusBar.removeWidget( self.lblMessageFlood )
@@ -224,13 +249,11 @@ class ImageFloodTool(QgsMapTool):
         self.mapCanvas = iface.mapCanvas()
         super().__init__( self.mapCanvas )
         self.statusBar = iface.mainWindow().statusBar()
-        self.lblThreshFlood = createLabelFlood()
-        self.lblMessageFlood = createLabelFlood()
-        #self.statusBar.setSizeGripEnabled( False )
+        self.project = QgsProject.instance()
+        self.lblThreshFlood, self.lblMessageFlood = None, None
         self.activated.connect( activated )
         self.deactivated.connect( deactivated )
 
-        self.extent = None
         self.canvasImage = ImageCanvas( self.mapCanvas )
         self.mapItem = MapItemFlood( self.mapCanvas )
 
@@ -240,7 +263,6 @@ class ImageFloodTool(QgsMapTool):
 
         self.hasPressPoint = False
         self.threshFloodMove = None
-        self.factorMove = 4
 
         self.pointCanvas = None
         self.pointMap = None
@@ -251,6 +273,8 @@ class ImageFloodTool(QgsMapTool):
         self.stylePoylgon = os.path.join( os.path.dirname(__file__), 'polygonflood.qml' )
         self.stylePoint = os.path.join( os.path.dirname(__file__), 'pointflood.qml' )
         self.styleRaster = os.path.join( os.path.dirname(__file__), 'rasterflood.qml' )
+
+        self.layerFlood = None
         
         self.filenameRasterFlood = '/vsimem/raster_flood.tif'
         self.existsLinkRasterFlood = False
@@ -270,38 +294,34 @@ class ImageFloodTool(QgsMapTool):
 
         self.pointMap = e.mapPoint()
         self.pointCanvas = e.originalPixelPoint()
-        # self.factorMove = 1
 
         self.lblMessageFlood.setText(f"Flood: {len( self.arrys_flood  )} images")
 
-        # lyr_seed = self._createQgsMemoryVector( 'seed', 'point',  self.pointMap )
-        # self.mapItem.setLayers( [ lyr_seed ] )
-        # self.mapItem.updateCanvas()
-
     def canvasMoveEvent(self, e):
-        if self.hasPressPoint:
-            pointCanvas = e.originalPixelPoint()# * self.factorMove
-            self.threshFloodMove = self.calcFlood.getThresholdFlood( self.pointCanvas, pointCanvas )
-            self.lblThreshFlood.setText(f"Treshold: {self.threshFloodMove} pixels")
-            if not self.extent == self.mapCanvas.extent(): # Warning for Save vector!
-                self._updateCanvasImage()
-            lyr_seed = self._createQgsMemoryVector( 'seed', 'point',  self.pointMap )
-            layers = [ lyr_seed ]
-            self.arryFloodMove = None
-            arryFlood, totalPixels = self._createFlood() # Using self.threshFloodMove
-            if totalPixels:
-                layers.append( self._rasterFlood( arryFlood )  )
-                self.arryFloodMove = arryFlood
-            else:
-                self.threshFloodMove = None
-            self.mapItem.setLayers( layers )
-            self.mapItem.updateCanvas()
+        if not self.hasPressPoint:
+            return
+
+        if self.canvasImage.changedCanvas():
+            self._updateCanvasImage()
+        pointCanvas = e.originalPixelPoint()
+        self.threshFloodMove = self.calcFlood.getThresholdFlood( self.pointCanvas, pointCanvas )
+        self.lblThreshFlood.setText(f"Treshold: {self.threshFloodMove} pixels")
+        lyrSeed = self._createQgsMemoryVector( 'seed', 'point',  self.pointMap )
+        layers = [ lyrSeed ]
+        self.arryFloodMove = None
+        arryFlood, totalPixels = self._createFlood() # Using self.threshFloodMove
+        if totalPixels:
+            layers.append( self._rasterFlood( arryFlood )  )
+            self.arryFloodMove = arryFlood
+        else:
+            self.threshFloodMove = None
+        self.mapItem.setLayers( layers )
+        self.mapItem.updateCanvas()
 
     def canvasReleaseEvent(self, e):
         def updateArraysShowAll(arryFlood, lyrSeed ):
             self.arrys_flood.append( arryFlood )
-            arryFlood = self._reduceArrysFlood()
-            self.mapItem.setLayers( [ lyrSeed,  self._rasterFlood( arryFlood ) ] )
+            self.mapItem.setLayers( [ lyrSeed,  self._rasterFlood( self._reduceArrysFlood() ) ] )
             self.mapItem.updateCanvas()
 
         self.hasPressPoint = False
@@ -314,7 +334,7 @@ class ImageFloodTool(QgsMapTool):
         # Create array flood and show arrays
         if self.arryFloodMove is None:
             self.lblThreshFlood.setText(f"Treshold: {self.calcFlood.threshFlood} pixels")
-            if not self.extent == self.mapCanvas.extent(): # Warning for Save vector!
+            if self.canvasImage.changedCanvas():
                 self._updateCanvasImage()
             arryFlood, totalPixels = self._createFlood()
             if totalPixels:
@@ -324,8 +344,7 @@ class ImageFloodTool(QgsMapTool):
                 return
 
             if len( self.arrys_flood ):
-                arryFlood = self._reduceArrysFlood()
-                self.mapItem.setLayers( [ lyrSeed,  self._rasterFlood( arryFlood ) ] )
+                self.mapItem.setLayers( [ lyrSeed,  self._rasterFlood( self._reduceArrysFlood() ) ] )
             else:
                 self.mapItem.setLayers( [ lyrSeed ] )
             self.mapItem.updateCanvas()
@@ -334,7 +353,7 @@ class ImageFloodTool(QgsMapTool):
             return
         # Show arrays
         updateArraysShowAll( self.arryFloodMove, lyrSeed )
-        totalPixels = ( self.arryFloodMove == self.calcFlood.flood_value ).sum().item()
+        totalPixels = ( self.arryFloodMove == self.calcFlood.flood_value_color ).sum().item()
         msg = f"{ len( self.arrys_flood ) } images - Last image added {totalPixels} pixels"
         self.lblMessageFlood.setText(f"Flood: {msg}")
         self.calcFlood.threshFlood = self.threshFloodMove  # Update treshold
@@ -342,14 +361,13 @@ class ImageFloodTool(QgsMapTool):
     def keyReleaseEvent(self, e):
         def setMapItem(existsFlood=True):
             if existsFlood:
-                arryFlood = self._reduceArrysFlood()
-                self.mapItem.setLayers([ self._rasterFlood( arryFlood ) ] )
+                self.mapItem.setLayers([ self._rasterFlood( self._reduceArrysFlood() ) ] )
             else:
                 self.mapItem.setLayers([])
             self.mapItem.updateCanvas()
 
         key = e.key()
-        if not key in( Qt.Key_D, Qt.Key_U ): # Delete, Undo
+        if not key in( Qt.Key_D, Qt.Key_U, Qt.Key_H, Qt.Key_P ): # Delete, Undo, Hole, Polygon
             return
 
         if e.key() == Qt.Key_D:
@@ -365,20 +383,43 @@ class ImageFloodTool(QgsMapTool):
             self.arrys_flood.append( self.arrys_flood_delete.pop() )
             self.lblMessageFlood.setText(f"Flood: {len( self.arrys_flood )} images")
             setMapItem()
+            return
+
+        if e.key() == Qt.Key_H and len( self.arrys_flood ) > 0:
+            arry = self.arrys_flood.pop()
+            binary_holes = ndimage.binary_fill_holes( arry )
+            arry[ binary_holes ] = self.calcFlood.flood_value_color
+            self.arrys_flood.append( arry )
+            self.lblMessageFlood.setText(f"Flood: remove holes - {len( self.arrys_flood )} images")
+            setMapItem()
+            return
+
+        if e.key() == Qt.Key_P and len( self.arrys_flood ) > 0:
+            if self._populateLayerFlood():
+                setMapItem( False )
+                self.arrys_flood_delete.clear()
+                self.arrys_flood.clear()
 
     def _updateCanvasImage(self):
+        def getFloodValue():
+            arry = self.canvasImage.dataset.ReadAsArray()
+            for v in range(1, 256):
+                if arry[arry == v].sum() == 0:
+                    return v
+            raise TypeError("Impossible define value of seed")
+
         self.arrys_flood *= 0
         self.arrys_flood_delete *= 0
         self.canvasImage.process()
         if not self.canvasImage.dataset:
-            return
-        self.extent = self.mapCanvas.extent()
+            raise TypeError("Error created image from canvas. Check exists raster layer visible")
+        self.calcFlood.flood_value = getFloodValue()
 
     def _reduceArrysFlood(self):
         result = self.arrys_flood[0].copy()
         for arry in self.arrys_flood[ 1:]:
-            bool_b = ( arry == self.calcFlood.flood_value )
-            result[ bool_b ] = self.calcFlood.flood_value
+            bool_b = ( arry == self.calcFlood.flood_value_color )
+            result[ bool_b ] = self.calcFlood.flood_value_color
         return result
 
     def _createQgsMemoryVector(self, name, geomType, data):
@@ -392,7 +433,7 @@ class ImageFloodTool(QgsMapTool):
                 g = QgsGeometry()
                 g.fromWkb( feat.GetGeometryRef().ExportToIsoWkb() )
                 f = QgsFeature()
-                f.setGeometry( g.smooth( self.smooth_iter, self.smooth_offset ) )
+                f.setGeometry( g )
                 prov.addFeature( f )
 
         geomStyles = {
@@ -402,6 +443,7 @@ class ImageFloodTool(QgsMapTool):
         if not geomType in geomStyles:
             TypeError(f"Only Geometries '{''.join( geomStyles )}' are allowed")
 
+        
         crs = self.mapCanvas.mapSettings().destinationCrs().authid()
         uri = f"{geomType}?crs={crs}"
         l = QgsVectorLayer( uri, name, 'memory')
@@ -445,9 +487,30 @@ class ImageFloodTool(QgsMapTool):
         gdal.Polygonize( srcBand=band, maskBand=band, outLayer=layer, iPixValField=-1)
         dsRaster = None
         #
-        polygonFlood = self._createQgsMemoryVector( 'flood', 'polygon', layer )
+        return layer, ds
+
+    def _populateLayerFlood(self):
+        layer, ds = self._polygonizeFlood( self._reduceArrysFlood() )
+        if not layer.GetFeatureCount():
+            return False
+
+        crsLayer = self.layerFlood.crs()
+        crsDS = QgsCoordinateReferenceSystem()
+        crsDS.createFromString( layer.GetSpatialRef().ExportToWkt() )
+        prov = self.layerFlood.dataProvider()
+        ct = QgsCoordinateTransform( crsDS, crsLayer, self.project )
+        for feat in layer:
+            g = QgsGeometry()
+            g.fromWkb( feat.GetGeometryRef().ExportToIsoWkb() )
+            g = g.smooth( self.smooth_iter, self.smooth_offset )
+            g.transform( ct )
+            f = QgsFeature()
+            f.setGeometry( g )
+            prov.addFeature( f )
         ds = None
-        return polygonFlood
+        self.layerFlood.updateExtents()
+        self.layerFlood.triggerRepaint()
+        return True
 
     def _createFlood(self):
         if self.pointMap is None:
@@ -460,7 +523,7 @@ class ImageFloodTool(QgsMapTool):
         if self.threshFloodMove:
             args['threshFlood'] = self.threshFloodMove
         arryFlood = self.calcFlood.get( **args ) 
-        totalPixels = ( arryFlood == self.calcFlood.flood_value ).sum().item()
+        totalPixels = ( arryFlood == self.calcFlood.flood_value_color ).sum().item()
         return arryFlood, totalPixels
 
 
