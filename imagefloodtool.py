@@ -26,21 +26,22 @@ class MapItemFlood(QgsMapCanvasItem):
     def __init__(self, mapCanvas):
         super().__init__( mapCanvas )
         self.mapCanvas = mapCanvas
+        self.layers = []
         self.enabled = True
-        self.layers = None
-        self.image = None
 
-    def _setImage(self):
+    def paint(self, painter, *args): # NEED *args for   WINDOWS!
         def finished():
             image = job.renderedImage()
             if bool( self.mapCanvas.property('retro') ):
                 image = image.scaled( image.width() / 3, image.height() / 3 )
                 image = image.convertToFormat( QImage.Format_Indexed8, Qt.OrderedDither | Qt.OrderedAlphaDither )
-            self.image = image
+            painter.drawImage( image.rect(), image )
+
+        if not self.enabled or len( self.layers ) == 0:
+            return
 
         settings = QgsMapSettings( self.mapCanvas.mapSettings() )
-        if len( self.layers ):
-            settings.setLayers( self.layers )
+        settings.setLayers( self.layers )
         settings.setBackgroundColor( QColor( Qt.transparent ) )
         
         self.setRect( self.mapCanvas.extent() )
@@ -48,23 +49,9 @@ class MapItemFlood(QgsMapCanvasItem):
         job.start()
         job.finished.connect( finished) 
         job.waitForFinished()
-
-    def paint(self, painter, *args): # NEED *args for   WINDOWS!
-        if not self.layers:
-            return
-
-        if not self.enabled:
-            image = QImage( 1, 1, QImage.Format_RGB32 )
-            image.fill( QColor( Qt.transparent ) )
-            painter.drawImage( image.rect(), image )
-            return
-
-        self._setImage()
-        painter.drawImage( self.image.rect(), self.image )
         
     def setLayers(self, layers):
         self.layers = layers
-        self.enabled = True
 
 
 class ImageCanvas():
