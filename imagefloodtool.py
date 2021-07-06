@@ -1,7 +1,7 @@
 
 from qgis.PyQt.QtCore import Qt, QByteArray, QBuffer, QIODevice
 from qgis.PyQt.QtGui import QImage, QColor
-from qgis.PyQt.QtWidgets import QLabel, QFrame
+from qgis.PyQt.QtWidgets import QLabel, QFrame, QMessageBox
 
 from qgis.core import (
     QgsProject,
@@ -269,6 +269,18 @@ class ImageFloodTool(QgsMapTool):
         self.canvasImage.dataset = None
 
     def canvasPressEvent(self, e):
+        def savePolygon():
+            if not self.canvasImage.changedCanvas() or not len( self.arrys_flood ):
+                return False
+
+            ret = QMessageBox.question(None, 'Image flood tool', 'Save image in polygon layer?', QMessageBox.Yes | QMessageBox.No )
+            if ret == QMessageBox.Yes:
+                if self._populateLayerFlood():
+                    self.arrys_flood_delete.clear()
+                    self.arrys_flood.clear()
+                    return True
+            return False
+
         if e.button() == Qt.RightButton:
             self.mapItem.enabled = False
             self.mapItem.updateCanvas()
@@ -281,7 +293,11 @@ class ImageFloodTool(QgsMapTool):
         self.pointMap = e.mapPoint()
         self.pointCanvas = e.originalPixelPoint()
 
-        self.lblMessageFlood.setText(f"Flood: {len( self.arrys_flood  )} images")
+        if savePolygon():
+            self.hasPressPoint = False
+            self.mapItem.setLayers([])
+            self.mapItem.updateCanvas()
+        self.lblMessageFlood.setText(f"Flood: {len( self.arrys_flood )} images")
 
     def canvasMoveEvent(self, e):
         if not self.hasPressPoint:
@@ -346,10 +362,8 @@ class ImageFloodTool(QgsMapTool):
 
     def keyReleaseEvent(self, e):
         def setMapItem(existsFlood=True):
-            if existsFlood:
-                self.mapItem.setLayers([ self._rasterFlood( self._reduceArrysFlood() ) ] )
-            else:
-                self.mapItem.setLayers([])
+            layers = [] if not existsFlood else [ self._rasterFlood( self._reduceArrysFlood() ) ]
+            self.mapItem.setLayers( layers )
             self.mapItem.updateCanvas()
 
         key = e.key()
@@ -365,7 +379,9 @@ class ImageFloodTool(QgsMapTool):
             setMapItem( total > 0 )
             return
 
-        if e.key() == Qt.Key_U and len( self.arrys_flood_delete ):
+        if e.key() == Qt.Key_U:
+            if not len( self.arrys_flood_delete ):
+                return
             self.arrys_flood.append( self.arrys_flood_delete.pop() )
             self.lblMessageFlood.setText(f"Flood: {len( self.arrys_flood )} images")
             setMapItem()
@@ -461,22 +477,22 @@ class ImageFloodTool(QgsMapTool):
         self.existsLinkRasterFlood = True
         return rl
 
-    def _polygonizeFlood(self, arrayFlood):
-        tran = self.canvasImage.dataset.GetGeoTransform()
-        srs = self.canvasImage.dataset.GetSpatialRef()
-        # Raster
-        dsRaster = createDatasetMem( arrayFlood, tran, srs )
-        band = dsRaster.GetRasterBand(1)
-        # Vector
-        ds = ogr.GetDriverByName('MEMORY').CreateDataSource('memData')
-        layer = ds.CreateLayer( name='memLayer', srs=srs, geom_type=ogr.wkbPolygon )
-        gdal.Polygonize( srcBand=band, maskBand=band, outLayer=layer, iPixValField=-1)
-        dsRaster = None
-        #
-        return layer, ds
-
     def _populateLayerFlood(self):
-        layer, ds = self._polygonizeFlood( self._reduceArrysFlood() )
+        def polygonizeFlood(arrayFlood):
+            tran = self.canvasImage.dataset.GetGeoTransform()
+            srs = self.canvasImage.dataset.GetSpatialRef()
+            # Raster
+            dsRaster = createDatasetMem( arrayFlood, tran, srs )
+            band = dsRaster.GetRasterBand(1)
+            # Vector
+            ds = ogr.GetDriverByName('MEMORY').CreateDataSource('memData')
+            layer = ds.CreateLayer( name='memLayer', srs=srs, geom_type=ogr.wkbPolygon )
+            gdal.Polygonize( srcBand=band, maskBand=band, outLayer=layer, iPixValField=-1)
+            dsRaster = None
+            #
+            return layer, ds
+
+        layer, ds = polygonizeFlood( self._reduceArrysFlood() )
         if not layer.GetFeatureCount():
             return False
 
