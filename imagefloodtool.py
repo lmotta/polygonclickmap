@@ -59,53 +59,52 @@ class ImageCanvas():
         self.root = QgsProject.instance().layerTreeRoot()
         self.mapCanvas = canvas
         #
-        self.dataset = None
-        self.crs = None
+        self.dataset = None # set by process.finished
         self.extent = None
         self.rasters = None
-
-    def _setDataset(self, image):
-        def setGeoreference(ds):
-            #
-            extent = self.mapCanvas.extent()
-            imgWidth, imgHeight = image.width(), image.height()
-            resX, resY = extent.width() / imgWidth, extent.height() / imgHeight
-            geoTrans = ( extent.xMinimum(), resX, 0.0, extent.yMaximum(), 0.0, -1 * resY )
-            ds.SetGeoTransform( geoTrans )
-            # 
-            crs = self.mapCanvas.mapSettings().destinationCrs()
-            srs = osr.SpatialReference()
-            srs.ImportFromWkt( crs.toWkt() )
-            ds.SetSpatialRef( srs )
-        # Copy image to QByteArray
-        ba = QByteArray()
-        buf = QBuffer( ba )
-        buf.open( QIODevice.WriteOnly )
-        image.save( buf, "TIFF", 100 )
-        buf.close()
-        # Create Dataset
-        filename = '/vsimem/mem.tif'
-        gdal.FileFromMemBuffer( filename, ba.data() )
-        ds = gdal.Open( filename )
-        ds_mem = gdal.GetDriverByName('MEM').CreateCopy( '', ds )
-        setGeoreference( ds_mem )
-        ds = None
-        gdal.Unlink( filename )
-        ba = None
-        #
-        self.dataset = ds_mem
 
     def _rastersCanvas(self):
         return [ l for l in self.root.checkedLayers() if not l is None and l.type() == QgsMapLayer.RasterLayer ]
 
     def process(self):
         def finished():
+            def createDataset(image):
+                def setGeoreference(ds):
+                    #
+                    extent = self.mapCanvas.extent()
+                    imgWidth, imgHeight = image.width(), image.height()
+                    resX, resY = extent.width() / imgWidth, extent.height() / imgHeight
+                    geoTrans = ( extent.xMinimum(), resX, 0.0, extent.yMaximum(), 0.0, -1 * resY )
+                    ds.SetGeoTransform( geoTrans )
+                    # 
+                    crs = self.mapCanvas.mapSettings().destinationCrs()
+                    srs = osr.SpatialReference()
+                    srs.ImportFromWkt( crs.toWkt() )
+                    ds.SetSpatialRef( srs )
+                # Copy image to QByteArray
+                ba = QByteArray()
+                buf = QBuffer( ba )
+                buf.open( QIODevice.WriteOnly )
+                image.save( buf, "TIFF", 100 )
+                buf.close()
+                # Create Dataset
+                filename = '/vsimem/mem.tif'
+                gdal.FileFromMemBuffer( filename, ba.data() )
+                ds = gdal.Open( filename )
+                ds_mem = gdal.GetDriverByName('MEM').CreateCopy( '', ds )
+                setGeoreference( ds_mem )
+                ds = None
+                gdal.Unlink( filename )
+                ba = None
+                #
+                return ds_mem
+
             image = job.renderedImage()
             if bool( self.mapCanvas.property('retro') ):
                 image = image.scaled( image.width() / 3, image.height() / 3 )
                 image = image.convertToFormat( QImage.Format_Indexed8, Qt.OrderedDither | Qt.OrderedAlphaDither )
 
-            self._setDataset( image )
+            self.dataset = createDataset( image )
 
         self.dataset = None
         rasters = self._rastersCanvas()
