@@ -207,6 +207,7 @@ def createDatasetMem(arry, geoTransform, spatialRef, nodata=None):
 
 
 class ImageFloodTool(QgsMapTool):
+    PLUGINNAME = 'Image flood tool'
     def __init__(self, iface):
         def createLabelFlood():
             lbl = QLabel()
@@ -227,18 +228,24 @@ class ImageFloodTool(QgsMapTool):
                 self.project.addMapLayer( self.layerFlood )
                 self.layerFlood.loadNamedStyle( self.stylePoylgon )
 
-
         def deactivated():
             self.statusBar.removeWidget( self.lblMessageFlood )
             self.statusBar.removeWidget( self.lblThreshFlood )
 
+        def layerWillBeRemoved(layerId):
+            if self.layerFlood.id() == layerId:
+                self.layerFlood = None
+
         self.mapCanvas = iface.mapCanvas()
         super().__init__( self.mapCanvas )
         self.statusBar = iface.mainWindow().statusBar()
+        self.msgBar = iface.messageBar()
         self.project = QgsProject.instance()
         self.lblThreshFlood, self.lblMessageFlood = None, None
+        # Signals
         self.activated.connect( activated )
         self.deactivated.connect( deactivated )
+        self.project.layerWillBeRemoved.connect( layerWillBeRemoved )
 
         self.canvasImage = ImageCanvas( self.mapCanvas )
         self.mapItem = MapItemFlood( self.mapCanvas )
@@ -270,14 +277,14 @@ class ImageFloodTool(QgsMapTool):
 
     def canvasPressEvent(self, e):
         def savePolygon():
-            if not self.canvasImage.changedCanvas() or not len( self.arrys_flood ):
+            if self.layerFlood is None or not self.canvasImage.changedCanvas() or not len( self.arrys_flood ):
                 return False
 
-            ret = QMessageBox.question(None, 'Image flood tool', 'Save image in polygon layer?', QMessageBox.Yes | QMessageBox.No )
+            ret = QMessageBox.question(None, self.PLUGINNAME, 'Save image in polygon layer?', QMessageBox.Yes | QMessageBox.No )
             if ret == QMessageBox.Yes:
                 if self._populateLayerFlood():
-                    self.arrys_flood_delete.clear()
-                    self.arrys_flood.clear()
+                    self.arrys_flood *= 0
+                    self.arrys_flood_delete *= 0
                     return True
             return False
 
@@ -294,13 +301,13 @@ class ImageFloodTool(QgsMapTool):
         self.pointCanvas = e.originalPixelPoint()
 
         if savePolygon():
-            self.hasPressPoint = False
+            self.hasPressPoint = False # Escape canvasMoveEvent
             self.mapItem.setLayers([])
             self.mapItem.updateCanvas()
         self.lblMessageFlood.setText(f"Flood: {len( self.arrys_flood )} images")
 
     def canvasMoveEvent(self, e):
-        if not self.hasPressPoint:
+        if not self.hasPressPoint: # Always e.button() = 0
             return
 
         if self.canvasImage.changedCanvas():
@@ -397,10 +404,15 @@ class ImageFloodTool(QgsMapTool):
             return
 
         if e.key() == Qt.Key_P and len( self.arrys_flood ) > 0:
+            if self.layerFlood is None:
+                msg = 'Missing polygon layer to receive'
+                self.msgBar.pushWarning( self.PLUGINNAME, msg )
+                return
+
             if self._populateLayerFlood():
                 setMapItem( False )
-                self.arrys_flood_delete.clear()
-                self.arrys_flood.clear()
+                self.arrys_flood *= 0
+                self.arrys_flood_delete *= 0
 
     def _updateCanvasImage(self):
         def getFloodValue():
