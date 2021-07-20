@@ -1,4 +1,5 @@
 
+from plugin.geometry import Polygon
 from qgis.PyQt.QtCore import Qt, QByteArray, QBuffer, QIODevice
 from qgis.PyQt.QtGui import QImage, QColor
 from qgis.PyQt.QtWidgets import QLabel, QFrame, QMessageBox
@@ -6,7 +7,7 @@ from qgis.PyQt.QtWidgets import QLabel, QFrame, QMessageBox
 from qgis.core import (
     QgsProject,
     QgsMapLayer, QgsVectorLayer, QgsRasterLayer,
-    QgsGeometry, QgsFeature, QgsPointXY,
+    QgsGeometry, QgsFeature, QgsWkbTypes,
     QgsMapSettings, 
     QgsCoordinateReferenceSystem, QgsCoordinateTransform,
     QgsMapRendererParallelJob 
@@ -274,6 +275,11 @@ class ImageFlood():
         self.mapItem.enabled = enabled
         self.mapItem.updateCanvas()
 
+    def clearFloodCanvas(self):
+        self.arrys_flood *= 0
+        self.arrys_flood_delete *= 0
+        self._setMapItem( False )
+
     def showFloodMovingCanvas(self, pointCanvas, threshFlood):
         self.arryFloodMove = None
         layers = [ self.lyrSeed ]
@@ -354,7 +360,6 @@ class ImageFlood():
         crsLayer = layerFlood.crs()
         crsDS = QgsCoordinateReferenceSystem()
         crsDS.createFromString( layer.GetSpatialRef().ExportToWkt() )
-        prov = layerFlood.dataProvider()
         ct = QgsCoordinateTransform( crsDS, crsLayer, self.project )
         for feat in layer:
             g = QgsGeometry()
@@ -363,7 +368,7 @@ class ImageFlood():
             g.transform( ct )
             f = QgsFeature()
             f.setGeometry( g )
-            prov.addFeature( f )
+            layerFlood.addFeature( f )
         ds = None
         layerFlood.updateExtents()
         layerFlood.triggerRepaint()
@@ -434,13 +439,19 @@ class ImageFlood():
 class ImageFloodTool(QgsMapTool):
     PLUGINNAME = 'Image flood tool'
     def __init__(self, iface):
-        def createLabelFlood():
-            lbl = QLabel()
-            lbl.setFrameStyle( QFrame.StyledPanel )
-            lbl.setMinimumWidth( 100 )
-            return lbl
+        def layerWillBeRemoved(layerId):
+            if self.layerFlood and self.layerFlood.id() == layerId:
+                if self.imageFlood.totalFlood():
+                    self._savePolygon()
+                self.layerFlood = None
 
         def activated():
+            def createLabelFlood():
+                lbl = QLabel()
+                lbl.setFrameStyle( QFrame.StyledPanel )
+                lbl.setMinimumWidth( 100 )
+                return lbl
+
             self.lblThreshFlood = createLabelFlood()
             self.lblMessageFlood = createLabelFlood()
             self.statusBar.addPermanentWidget( self.lblMessageFlood, 0)
@@ -448,18 +459,18 @@ class ImageFloodTool(QgsMapTool):
             self.statusBar.addPermanentWidget( self.lblThreshFlood, 0)
             self.lblThreshFlood.setText(f"Treshold: {self.imageFlood.getCurrentThreshold()} RGB")
 
-            if self.layerFlood is None:
-                self.layerFlood = QgsVectorLayer( 'Polygon?crs=EPSG:4326', 'flood', 'memory')
-                self.project.addMapLayer( self.layerFlood )
-                self.layerFlood.loadNamedStyle( self.stylePoylgon )
+            # if self.layerFlood is None:
+            #     self.layerFlood = QgsVectorLayer( 'Polygon?crs=EPSG:4326', 'flood', 'memory')
+            #     self.project.addMapLayer( self.layerFlood )
+            #     self.layerFlood.loadNamedStyle( self.stylePoylgon )
 
         def deactivated():
             self.statusBar.removeWidget( self.lblMessageFlood )
             self.statusBar.removeWidget( self.lblThreshFlood )
 
-        def layerWillBeRemoved(layerId):
-            if self.layerFlood and self.layerFlood.id() == layerId:
-                self.layerFlood = None
+        def currentLayerChanged(layer):
+            if self.isActive() and self.isEditabledPolygon( layer ):
+                self.setLayerFlood( layer )
 
         self.mapCanvas = iface.mapCanvas()
         super().__init__( self.mapCanvas )
@@ -467,10 +478,11 @@ class ImageFloodTool(QgsMapTool):
         self.msgBar = iface.messageBar()
         self.project = QgsProject.instance()
         self.lblThreshFlood, self.lblMessageFlood = None, None
-        # Signals
+
+        self.project.layerWillBeRemoved.connect( layerWillBeRemoved )
         self.activated.connect( activated )
         self.deactivated.connect( deactivated )
-        self.project.layerWillBeRemoved.connect( layerWillBeRemoved )
+        iface.layerTreeView().currentLayerChanged.connect( currentLayerChanged )
 
         self.imageFlood = ImageFlood( self.mapCanvas )
         
@@ -482,29 +494,29 @@ class ImageFloodTool(QgsMapTool):
         self.stylePoylgon = os.path.join( os.path.dirname(__file__), 'polygonflood.qml' )
 
         self.layerFlood = None
+        self.nameBack = None
 
     def __del_(self):
         del self.imageFlood
+
+    def isEditabledPolygon(self, layer):
+        return not layer is None and \
+               layer.type() == QgsMapLayer.VectorLayer and \
+               layer.geometryType() == QgsWkbTypes.PolygonGeometry and \
+               layer.isEditable()
 
     def canvasPressEvent(self, e):
         def savePolygon():
             if self.layerFlood is None or not self.imageFlood.needSavePolygon():
                 return False
-
-            ret = QMessageBox.question(None, self.PLUGINNAME, 'Save image in polygon layer?', QMessageBox.Yes | QMessageBox.No )
-            if ret == QMessageBox.Yes:
-                totalFeats = self.imageFlood.polygonizeFlood( self.layerFlood )
-                msg = 'Flood: Polygonize - Missing features' if not totalFeats \
-                    else f"Flood: Polygonize - {totalFeats} features added"
-                self.lblMessageFlood.setText( msg )
-                return True
-            return False
+            return self._savePolygon()
 
         if e.button() == Qt.RightButton:
             self.imageFlood.enabledFloodCanvas( False )
             return
 
         self.hasPressPoint = True
+        
         self.threshFloodMove = None
         self.arryFloodMove = None
 
@@ -550,7 +562,7 @@ class ImageFloodTool(QgsMapTool):
 
     def keyReleaseEvent(self, e):
         key = e.key()
-        if not key in( Qt.Key_D, Qt.Key_U, Qt.Key_H, Qt.Key_P ): # Delete, Undo, Hole, Polygon
+        if not key in( Qt.Key_D, Qt.Key_U, Qt.Key_H, Qt.Key_P, Qt.Key_C ): # Delete, Undo, Hole, Polygonize, Clear
             return
 
         if e.key() == Qt.Key_D:
@@ -573,11 +585,47 @@ class ImageFloodTool(QgsMapTool):
                 msg = 'Missing polygon layer to receive'
                 self.msgBar.pushWarning( self.PLUGINNAME, msg )
                 return
+            if not self.layerFlood.isEditable():
+                msg = f"Polygon layer \"{self.layerFlood.name()}\"need be Editable"
+                self.msgBar.pushWarning( self.PLUGINNAME, msg )
+                return
 
             totalFeats = self.imageFlood.polygonizeFlood( self.layerFlood )
             msg = 'Flood: Polygonize - Missing features' if not totalFeats \
                 else f"Flood: Polygonize - {totalFeats} features added"
             self.lblMessageFlood.setText( msg )
+            return
+
+        if e.key() == Qt.Key_C:
+            if self.imageFlood.clearFloodCanvas():
+                self.lblMessageFlood.setText(f"Flood: clear - {self.imageFlood.totalFlood()} images")
+            return
+
+
+    def setLayerFlood(self, layer):
+        if self.layerFlood == layer:
+            return
+        if self.imageFlood.totalFlood():
+            self._savePolygon()
+        if self.nameBack:
+            self.layerFlood.setName( self.nameBack )
+        self.nameBack = layer.name()
+        self.layerFlood = layer
+        msg = f"Current Flood layer is \"{self.nameBack}\""
+        self.msgBar.pushInfo( self.PLUGINNAME, msg )
+        name = f"Flood * {self.nameBack}"
+        layer.setName( name )
+
+    def _savePolygon(self):
+        msg = f"Add features from images to \"{self.layerFlood.name()}\" ?"
+        ret = QMessageBox.question(None, self.PLUGINNAME, msg, QMessageBox.Yes | QMessageBox.No )
+        if ret == QMessageBox.Yes:
+            totalFeats = self.imageFlood.polygonizeFlood( self.layerFlood )
+            msg = 'Flood: Polygonize - Missing features' if not totalFeats \
+                else f"Flood: Polygonize - {totalFeats} features added"
+            self.lblMessageFlood.setText( msg )
+            return True
+        return False
 
 
 def saveShp(geoms, srs):

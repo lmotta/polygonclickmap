@@ -72,5 +72,12 @@ class ImageFloodToolPlugin(QObject):
 
     @pyqtSlot(bool)
     def run(self, checked):
+        layer = self.iface.activeLayer()
+        if not self.tool.isEditabledPolygon( layer ):
+            msg = f"Invalid layer \"{layer.name()}\", need be Editable Polygon"
+            self.tool.msgBar.pushWarning( self.tool.PLUGINNAME, msg )
+            return
+
         if self.mapCanvas.mapTool() != self.tool:
+            self.tool.setLayerFlood( layer )
             self.mapCanvas.setMapTool( self.tool)
