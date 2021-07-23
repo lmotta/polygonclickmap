@@ -48,6 +48,9 @@ class ImageFloodToolPlugin(QObject):
         self.tool = ImageFloodTool( iface )
 
     def initGui(self):
+        def currentLayerChanged(layer):
+            self.action.setEnabled( self.tool.isEditabledPolygon( layer ) )
+
         title = "Create polygon from image using flood algorithm"
         icon = QIcon( os.path.join( os.path.dirname(__file__), 'imagefloodtool.svg' ) )
         self.action = QAction( icon, title, self.iface.mainWindow() )
@@ -59,10 +62,12 @@ class ImageFloodToolPlugin(QObject):
 
         # Maptool
         self.action.setCheckable( True )
+        self.action.setEnabled( False )
         self.tool.setAction( self.action )
 
         self.iface.addToolBarIcon( self.action )
         self.iface.addPluginToMenu( self.menu, self.action )
+        self.iface.currentLayerChanged.connect( currentLayerChanged ) # Only Plygon layer
 
     def unload(self):
         self.mapCanvas.unsetMapTool( self.tool )
@@ -72,12 +77,10 @@ class ImageFloodToolPlugin(QObject):
 
     @pyqtSlot(bool)
     def run(self, checked):
-        layer = self.iface.activeLayer()
-        if not self.tool.isEditabledPolygon( layer ):
-            msg = f"Invalid layer \"{layer.name()}\", need be Editable Polygon"
-            self.tool.msgBar.pushWarning( self.tool.PLUGINNAME, msg )
-            return
-
         if self.mapCanvas.mapTool() != self.tool:
+            layer = self.iface.activeLayer()
             self.tool.setLayerFlood( layer )
             self.mapCanvas.setMapTool( self.tool)
+            return
+        self.action.setChecked( True )
+        

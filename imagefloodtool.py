@@ -439,50 +439,19 @@ class ImageFlood():
 class ImageFloodTool(QgsMapTool):
     PLUGINNAME = 'Image flood tool'
     def __init__(self, iface):
-        def layerWillBeRemoved(layerId):
-            if self.layerFlood and self.layerFlood.id() == layerId:
-                if self.imageFlood.totalFlood():
-                    self._savePolygon()
-                self.layerFlood = None
-
-        def activated():
-            def createLabelFlood():
-                lbl = QLabel()
-                lbl.setFrameStyle( QFrame.StyledPanel )
-                lbl.setMinimumWidth( 100 )
-                return lbl
-
-            self.lblThreshFlood = createLabelFlood()
-            self.lblMessageFlood = createLabelFlood()
-            self.statusBar.addPermanentWidget( self.lblMessageFlood, 0)
-            self.lblMessageFlood.setText(f"Flood: {self.imageFlood.totalFlood()} images")
-            self.statusBar.addPermanentWidget( self.lblThreshFlood, 0)
-            self.lblThreshFlood.setText(f"Treshold: {self.imageFlood.getCurrentThreshold()} RGB")
-
-            # if self.layerFlood is None:
-            #     self.layerFlood = QgsVectorLayer( 'Polygon?crs=EPSG:4326', 'flood', 'memory')
-            #     self.project.addMapLayer( self.layerFlood )
-            #     self.layerFlood.loadNamedStyle( self.stylePoylgon )
-
-        def deactivated():
-            self.statusBar.removeWidget( self.lblMessageFlood )
-            self.statusBar.removeWidget( self.lblThreshFlood )
-
-        def currentLayerChanged(layer):
-            if self.isActive() and self.isEditabledPolygon( layer ):
-                self.setLayerFlood( layer )
-
         self.mapCanvas = iface.mapCanvas()
+        self.iface = iface
         super().__init__( self.mapCanvas )
         self.statusBar = iface.mainWindow().statusBar()
         self.msgBar = iface.messageBar()
         self.project = QgsProject.instance()
         self.lblThreshFlood, self.lblMessageFlood = None, None
+        self.toolBack = None # self.setLayer
 
-        self.project.layerWillBeRemoved.connect( layerWillBeRemoved )
-        self.activated.connect( activated )
-        self.deactivated.connect( deactivated )
-        iface.layerTreeView().currentLayerChanged.connect( currentLayerChanged )
+        # self.project.layerWillBeRemoved.connect( self._layerWillBeRemoved )
+        self.activated.connect( self._activatedTool )
+        self.deactivated.connect( self._deactivatedTool )
+        self.iface.layerTreeView().currentLayerChanged.connect( self._currentLayerChanged )
 
         self.imageFlood = ImageFlood( self.mapCanvas )
         
@@ -492,12 +461,14 @@ class ImageFloodTool(QgsMapTool):
         self.pointCanvas = None
         
         self.stylePoylgon = os.path.join( os.path.dirname(__file__), 'polygonflood.qml' )
-
         self.layerFlood = None
-        self.nameBack = None
 
-    def __del_(self):
+    def __del__(self):
         del self.imageFlood
+        self.activated.connect( self._activated )
+        self.deactivated.connect( self._deactivatedTool )
+        # self.project.layerWillBeRemoved.disconnect( self._layerWillBeRemoved )
+        self.iface.layerTreeView().currentLayerChanged.connect( self._currentLayerChanged )
 
     def isEditabledPolygon(self, layer):
         return not layer is None and \
@@ -525,7 +496,6 @@ class ImageFloodTool(QgsMapTool):
 
         if savePolygon():
             self.hasPressPoint = False # Escape canvasMoveEvent
-        #self.lblMessageFlood.setText(f"Flood: {self.imageFlood.totalFlood()} images")
 
     def canvasMoveEvent(self, e):
         if not self.hasPressPoint: # Always e.button() = 0
@@ -536,7 +506,7 @@ class ImageFloodTool(QgsMapTool):
 
         pointCanvas = e.originalPixelPoint()
         self.threshFloodMove = self.imageFlood.calculateThreshold( self.pointCanvas, pointCanvas )
-        self.lblThreshFlood.setText(f"Treshold: {self.threshFloodMove} pixels")
+        self._setTextTreshold( self.threshFloodMove )
         totalPixels = self.imageFlood.showFloodMovingCanvas( self.pointCanvas, self.threshFloodMove )
         if not totalPixels:
             self.threshFloodMove = None
@@ -548,17 +518,17 @@ class ImageFloodTool(QgsMapTool):
             return
 
         if self.threshFloodMove is None:
-            self.lblThreshFlood.setText(f"Treshold: {self.imageFlood.getCurrentThreshold()} pixels")
+            self._setTextTreshold( self.imageFlood.getCurrentThreshold() )
             totalPixels = self.imageFlood.addFloodCanvas( self.pointCanvas )
             msg = f"{self.imageFlood.totalFlood()} images"
             msg = f"{msg} - Last image added {totalPixels} pixels" if totalPixels \
                 else f"{msg} - Not added images( no pixels found)"
-            self.lblMessageFlood.setText(f"Flood: {msg}")
+            self._setTextMessage( msg )
             return
         
         totalPixels = self.imageFlood.addFloodMoveCanvas( self.threshFloodMove )
         msg = f"{self.imageFlood.totalFlood()} images - Last image added {totalPixels} pixels"
-        self.lblMessageFlood.setText(f"Flood: {msg}")
+        self._setTextMessage( msg )
 
     def keyReleaseEvent(self, e):
         key = e.key()
@@ -567,17 +537,17 @@ class ImageFloodTool(QgsMapTool):
 
         if e.key() == Qt.Key_D:
             if self.imageFlood.deleteFlood():
-                self.lblMessageFlood.setText(f"Flood: {self.imageFlood.totalFlood()} images")
+                self._setTextMessage(f"{self.imageFlood.totalFlood()} images")
             return
 
         if e.key() == Qt.Key_U:
             if self.imageFlood.undoFlood():
-                self.lblMessageFlood.setText(f"Flood: {self.imageFlood.totalFlood()} images")
+                self._setTextMessage(f"{self.imageFlood.totalFlood()} images")
             return
 
         if e.key() == Qt.Key_H:
             if self.imageFlood.holeFlood():
-                self.lblMessageFlood.setText(f"Flood: remove holes - {self.imageFlood.totalFlood()} images")
+                self._setTextMessage(f"remove holes - {self.imageFlood.totalFlood()} images")
             return
 
         if e.key() == Qt.Key_P:
@@ -591,31 +561,38 @@ class ImageFloodTool(QgsMapTool):
                 return
 
             totalFeats = self.imageFlood.polygonizeFlood( self.layerFlood )
-            msg = 'Flood: Polygonize - Missing features' if not totalFeats \
-                else f"Flood: Polygonize - {totalFeats} features added"
-            self.lblMessageFlood.setText( msg )
+            msg = 'Polygonize - Missing features' if not totalFeats \
+                else f"Polygonize - {totalFeats} features added"
+            self._setTextMessage( msg )
             return
 
         if e.key() == Qt.Key_C:
             if self.imageFlood.clearFloodCanvas():
-                self.lblMessageFlood.setText(f"Flood: clear - {self.imageFlood.totalFlood()} images")
+                self._setTextMessage(f"clear - {self.imageFlood.totalFlood()} images")
             return
-
 
     def setLayerFlood(self, layer):
         if self.layerFlood == layer:
             return
+
         if self.imageFlood.totalFlood():
             self._savePolygon()
-        if self.nameBack:
-            self.layerFlood.setName( self.nameBack )
-        self.nameBack = layer.name()
-        self.layerFlood = layer
-        msg = f"Current Flood layer is \"{self.nameBack}\""
-        self.msgBar.pushInfo( self.PLUGINNAME, msg )
-        name = f"Flood * {self.nameBack}"
-        layer.setName( name )
 
+        msg = f"Current Flood layer is \"{layer.name()}\""
+        self.msgBar.pushInfo( self.PLUGINNAME, msg )
+        if not self.layerFlood is None:
+            self.layerFlood.nameChanged.disconnect( self._nameChangedLayerFlood )
+            self.layerFlood.editingStopped.connect( self._editingStoppedLayerFlood )
+        # Signal
+        layer.nameChanged.connect( self._nameChangedLayerFlood )
+        layer.editingStopped.connect( self._editingStoppedLayerFlood )
+
+        self.layerFlood = layer
+        if self.lblMessageFlood:
+            self._setTextMessage(f"{self.imageFlood.totalFlood()} images")
+        if not self == self.mapCanvas.mapTool():
+            self.toolBack = self.mapCanvas.mapTool()
+        
     def _savePolygon(self):
         msg = f"Add features from images to \"{self.layerFlood.name()}\" ?"
         ret = QMessageBox.question(None, self.PLUGINNAME, msg, QMessageBox.Yes | QMessageBox.No )
@@ -626,6 +603,59 @@ class ImageFloodTool(QgsMapTool):
             self.lblMessageFlood.setText( msg )
             return True
         return False
+
+    def _setTextMessage(self, message):
+        self.lblMessageFlood.setText(f"Flood({self.layerFlood.name()}): {message}")
+
+    def _setTextTreshold(self, treshold):
+        self.lblThreshFlood.setText(f"Treshold: {treshold} (pixel RGB)")
+
+    # Slots
+    def _nameChangedLayerFlood(self):
+        self.lblMessageFlood.setText(f"Flood({self.layerFlood.name()}): {self.imageFlood.totalFlood()} images")
+    
+    def _editingStoppedLayerFlood(self):
+        if self.imageFlood.totalFlood():
+            self.layerFlood.startEditing()
+            self._savePolygon()
+            self.layerFlood.commitChanges()
+        self.mapCanvas.setMapTool( self.toolBack )
+        self.action().setEnabled( False )
+
+    def _layerWillBeRemoved(self, layerId):
+        if self.layerFlood and self.layerFlood.id() == layerId:
+            if self.imageFlood.totalFlood():
+                self._savePolygon()
+            self.layerFlood = None
+
+    def _currentLayerChanged(self, layer):
+        if self.isActive() and self.isEditabledPolygon( layer ):
+            self.setLayerFlood( layer )
+
+    def _activatedTool(self):
+        def createLabelFlood():
+            lbl = QLabel()
+            lbl.setFrameStyle( QFrame.StyledPanel )
+            lbl.setMinimumWidth( 100 )
+            return lbl
+
+        self.lblThreshFlood = createLabelFlood()
+        self.lblMessageFlood = createLabelFlood()
+        self.statusBar.addPermanentWidget( self.lblMessageFlood, 0)
+        self._setTextMessage(f"{self.imageFlood.totalFlood()} images")
+        self.statusBar.addPermanentWidget( self.lblThreshFlood, 0)
+        self._setTextTreshold( self.imageFlood.getCurrentThreshold() )
+
+        # if self.layerFlood is None:
+        #     self.layerFlood = QgsVectorLayer( 'Polygon?crs=EPSG:4326', 'flood', 'memory')
+        #     self.project.addMapLayer( self.layerFlood )
+        #     self.layerFlood.loadNamedStyle( self.stylePoylgon )
+
+    def _deactivatedTool(self):
+        self.statusBar.removeWidget( self.lblMessageFlood )
+        self.statusBar.removeWidget( self.lblThreshFlood )
+
+
 
 
 def saveShp(geoms, srs):
