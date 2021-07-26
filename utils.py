@@ -7,7 +7,8 @@ from qgis.core import (
     QgsMapLayer,
     QgsMapSettings, 
     QgsMapRendererParallelJob,
-    QgsCoordinateTransform 
+    QgsCoordinateTransform,
+    QgsRectangle
 )
 from qgis.gui import QgsMapCanvasItem 
 
@@ -60,25 +61,29 @@ class CanvasImage():
         self.dataset = None # set by process.finished
 
     def rasterLayers(self):
+        """
+        return: [ QgsRasterLayer ]
+        """
+        def getExtent(layer, ct):
+            crsLayer = layer.crs()
+            ct.setSourceCrs( crsLayer )
+            return ct.transform( layer.extent() )
+
         layers =  [ l for l in self.root.checkedLayers() if not l is None and l.type() == QgsMapLayer.RasterLayer ]
         if not len( layers ):
             return []
-
         # Check Intersects
         extent = self.mapCanvas.extent()
         ct = QgsCoordinateTransform()
         ct.setDestinationCrs( self.project.crs() )
-        layersCanvas = []
+        layersCanvas = [] # [ QgsRasterLayer ]
         for layer in layers:
-            crsLayer = layer.crs()
-            ct.setSourceCrs( crsLayer )
-            extentLayer = layer.extent()
-            extentLayer = ct.transform( extentLayer )
-            if extent.intersects( extentLayer ):
+            extLayer = getExtent( layer, ct )
+            if extent.intersects( extLayer ):
                 layersCanvas.append( layer )
         return layersCanvas
 
-    def process(self):
+    def process(self, rasters):
         def finished():
             def createDataset(image):
                 def setGeoreference(ds):
@@ -119,11 +124,11 @@ class CanvasImage():
             self.dataset = createDataset( image )
 
         self.dataset = None
-        rasters = self.rasterLayers()
-        if not len( rasters ):
-            return
+        # rasters = self.rasterLayers()
+        # if not len( rasters ):
+        #     return
         self.extent = self.mapCanvas.extent()
-        self.rasters = rasters
+        # self.rasters = rasters
         
         settings = QgsMapSettings( self.mapCanvas.mapSettings() )
         settings.setBackgroundColor( QColor( Qt.transparent ) )
@@ -134,7 +139,8 @@ class CanvasImage():
         job.waitForFinished()
 
     def changedCanvas(self):
-        return not ( self.rasters == self.rasterLayers() and self.extent == self.mapCanvas.extent() )
+        # return not ( self.rasters == self.rasterLayers() and self.extent == self.mapCanvas.extent() )
+        return not self.extent == self.mapCanvas.extent()
 
 
 class CalculateArrayFlood():

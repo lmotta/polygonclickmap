@@ -1,5 +1,5 @@
 
-from qgis.PyQt.QtCore import Qt
+from qgis.PyQt.QtCore import Qt, QVariant
 from qgis.PyQt.QtWidgets import QLabel, QFrame, QMessageBox
 
 from qgis.core import (
@@ -24,14 +24,14 @@ class ImageFlood():
         self.mapItem = MapItemFlood( mapCanvas )
         self.calcFlood = CalculateArrayFlood()
 
-        self.project = QgsProject.instance()
-
         self.arrys_flood = []
         self.arrys_flood_delete = []
         self.arryFloodMove = None
 
         self.lyrSeed = None
-        
+
+        self.rastersCanvas = None # [ RasterLayer inside Canvas]
+
         self.stylePoint = os.path.join( os.path.dirname(__file__), 'pointflood.qml' )
         self.styleRaster = os.path.join( os.path.dirname(__file__), 'rasterflood.qml' )
 
@@ -47,8 +47,11 @@ class ImageFlood():
     def setLayerSeed(self, pointMap):
         self.lyrSeed = self._createQgsSeedVector( pointMap )
 
+    def setRastersCanvas(self):
+        self.rastersCanvas = self.canvasImage.rasterLayers()
+
     def existsRasterLayer(self):
-        return len( self.canvasImage.rasterLayers() ) > 0
+        return len( self.rastersCanvas ) > 0
 
     def changedCanvas(self):
         return self.canvasImage.changedCanvas()
@@ -57,16 +60,9 @@ class ImageFlood():
         return self.canvasImage.changedCanvas() and len( self.arrys_flood )
 
     def updateCanvasImage(self):
-        def getFloodValue():
-            arry = self.canvasImage.dataset.ReadAsArray()
-            for v in range(1, 256):
-                if arry[arry == v].sum() == 0:
-                    return v
-            raise TypeError("Impossible define value of seed")
-
         self.arrys_flood *= 0
         self.arrys_flood_delete *= 0
-        self.canvasImage.process()
+        self.canvasImage.process( self.rastersCanvas )
         if not self.canvasImage.dataset:
             raise TypeError("Error created image from canvas. Check exists raster layer visible")
         if not self.calcFlood.setFloodValue( self.canvasImage.dataset ):
@@ -152,7 +148,7 @@ class ImageFlood():
         self._setMapItem()
         return True
 
-    def polygonizeFlood(self, layerFlood):
+    def polygonizeFlood(self, layerFlood, fieldNameRaster=None):
         def polygonizeFlood(arrayFlood):
             tran = self.canvasImage.dataset.GetGeoTransform()
             srs = self.canvasImage.dataset.GetSpatialRef()
@@ -172,17 +168,25 @@ class ImageFlood():
         if not totalFeats:
             return 0
 
+        if fieldNameRaster:
+            names = [ l.name() for l in self.rastersCanvas ]
+            names = ','.join( names )
+
         crsLayer = layerFlood.crs()
         crsDS = QgsCoordinateReferenceSystem()
         crsDS.createFromString( layer.GetSpatialRef().ExportToWkt() )
-        ct = QgsCoordinateTransform( crsDS, crsLayer, self.project )
+        ct = QgsCoordinateTransform( crsDS, crsLayer, QgsProject.instance() )
+        fields = layerFlood.fields()
         for feat in layer:
             g = QgsGeometry()
             g.fromWkb( feat.GetGeometryRef().ExportToIsoWkb() )
             g = g.smooth( self.smooth_iter, self.smooth_offset )
             g.transform( ct )
-            f = QgsFeature()
+            f = QgsFeature( fields )
             f.setGeometry( g )
+            if fieldNameRaster:
+                f[ fieldNameRaster ] = names
+                # f.setAttribute( fieldNameRaster, names )
             layerFlood.addFeature( f )
         ds = None
         layerFlood.updateExtents()
@@ -253,24 +257,22 @@ class ImageFlood():
 
 class ImageFloodTool(QgsMapTool):
     PLUGINNAME = 'Image flood tool'
+    FIELDNAMEFLOOD = 'raster'
     def __init__(self, iface):
         self.mapCanvas = iface.mapCanvas()
-        self.iface = iface
         super().__init__( self.mapCanvas )
-        self.statusBar = iface.mainWindow().statusBar()
+
         self.msgBar = iface.messageBar()
-        self.project = QgsProject.instance()
+        self.statusBar = iface.mainWindow().statusBar()
         self.lblThreshFlood, self.lblMessageFlood = None, None
         self.toolBack = None # self.setLayer
 
-        # self.project.layerWillBeRemoved.connect( self._layerWillBeRemoved )
         self.activated.connect( self._activatedTool )
         self.deactivated.connect( self._deactivatedTool )
-        self.iface.layerTreeView().currentLayerChanged.connect( self._currentLayerChanged )
+        iface.layerTreeView().currentLayerChanged.connect( self._currentLayerChanged )
+        self.iface = iface
 
         self.imageFlood = ImageFlood( self.mapCanvas )
-        
-        self.existsRasterLayer = False
         self.hasPressPoint = False
         self.threshFloodMove = None
 
@@ -278,13 +280,13 @@ class ImageFloodTool(QgsMapTool):
         
         self.stylePoylgon = os.path.join( os.path.dirname(__file__), 'polygonflood.qml' )
         self.layerFlood = None
+        self.existsFieldNameFlood = False
 
     def __del__(self):
         del self.imageFlood
         self.activated.connect( self._activated )
         self.deactivated.connect( self._deactivatedTool )
-        # self.project.layerWillBeRemoved.disconnect( self._layerWillBeRemoved )
-        self.iface.layerTreeView().currentLayerChanged.connect( self._currentLayerChanged )
+        self.iface.layerTreeView().currentLayerChanged.disconnect( self._currentLayerChanged )
 
     def isEditabledPolygon(self, layer):
         return not layer is None and \
@@ -302,8 +304,8 @@ class ImageFloodTool(QgsMapTool):
             self.imageFlood.enabledFloodCanvas( False )
             return
 
-        self.existsRasterLayer = self.imageFlood.existsRasterLayer()
-        if not self.existsRasterLayer:
+        self.imageFlood.setRastersCanvas()
+        if not self.imageFlood.existsRasterLayer():
             return
 
         self.hasPressPoint = True
@@ -320,7 +322,7 @@ class ImageFloodTool(QgsMapTool):
     def canvasMoveEvent(self, e):
         # Always e.button() = 0
 
-        if not self.hasPressPoint or not self.existsRasterLayer:
+        if not self.hasPressPoint or not self.imageFlood.existsRasterLayer():
             return
 
         if self.imageFlood.changedCanvas():
@@ -334,7 +336,7 @@ class ImageFloodTool(QgsMapTool):
             self.threshFloodMove = None
 
     def canvasReleaseEvent(self, e):
-        if not self.existsRasterLayer:
+        if not self.imageFlood.existsRasterLayer():
             msg = 'Missing raster layer visible in Map'
             self.msgBar.pushWarning( self.PLUGINNAME, msg )
             return
@@ -387,7 +389,10 @@ class ImageFloodTool(QgsMapTool):
                 self.msgBar.pushWarning( self.PLUGINNAME, msg )
                 return
 
-            totalFeats = self.imageFlood.polygonizeFlood( self.layerFlood )
+            args = [ self.layerFlood ]
+            if self.existsFieldNameFlood:
+                args.append( self.FIELDNAMEFLOOD )
+            totalFeats = self.imageFlood.polygonizeFlood( *args )
             msg = 'Polygonize - Missing features' if not totalFeats \
                 else f"Polygonize - {totalFeats} features added"
             self._setTextMessage( msg )
@@ -399,6 +404,14 @@ class ImageFloodTool(QgsMapTool):
             return
 
     def setLayerFlood(self, layer):
+        def existsFieldNameFlood(layer):
+            for field in layer.fields():
+                if field.type() == QVariant.String and field.name() == self.FIELDNAMEFLOOD:
+                    self.existsFieldNameFlood = True
+                    return
+            self.existsFieldNameFlood = False
+
+        existsFieldNameFlood( layer )
         if self.layerFlood == layer:
             return
 
@@ -407,9 +420,11 @@ class ImageFloodTool(QgsMapTool):
 
         msg = f"Current Flood layer is \"{layer.name()}\""
         self.msgBar.pushInfo( self.PLUGINNAME, msg )
+
         if not self.layerFlood is None:
             self.layerFlood.nameChanged.disconnect( self._nameChangedLayerFlood )
             self.layerFlood.editingStopped.connect( self._editingStoppedLayerFlood )
+
         # Signal
         layer.nameChanged.connect( self._nameChangedLayerFlood )
         layer.editingStopped.connect( self._editingStoppedLayerFlood )
@@ -424,7 +439,10 @@ class ImageFloodTool(QgsMapTool):
         msg = f"Add features from images to \"{self.layerFlood.name()}\" ?"
         ret = QMessageBox.question(None, self.PLUGINNAME, msg, QMessageBox.Yes | QMessageBox.No )
         if ret == QMessageBox.Yes:
-            totalFeats = self.imageFlood.polygonizeFlood( self.layerFlood )
+            args = [ self.layerFlood ]
+            if self.existsFieldNameFlood:
+                args.append( self.FIELDNAMEFLOOD )
+            totalFeats = self.imageFlood.polygonizeFlood( *args )
             msg = 'Flood: Polygonize - Missing features' if not totalFeats \
                 else f"Flood: Polygonize - {totalFeats} features added"
             self.lblMessageFlood.setText( msg )
@@ -448,12 +466,7 @@ class ImageFloodTool(QgsMapTool):
             self.layerFlood.commitChanges()
         self.mapCanvas.setMapTool( self.toolBack )
         self.action().setEnabled( False )
-
-    def _layerWillBeRemoved(self, layerId):
-        if self.layerFlood and self.layerFlood.id() == layerId:
-            if self.imageFlood.totalFlood():
-                self._savePolygon()
-            self.layerFlood = None
+        self.layerFlood = None
 
     def _currentLayerChanged(self, layer):
         if self.isActive() and self.isEditabledPolygon( layer ):
