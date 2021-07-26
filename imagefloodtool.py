@@ -90,6 +90,7 @@ class ImageFlood():
         self.arrys_flood *= 0
         self.arrys_flood_delete *= 0
         self._setMapItem( False )
+        return True
 
     def showFloodMovingCanvas(self, pointCanvas, threshFlood):
         self.arryFloodMove = None
@@ -399,8 +400,15 @@ class ImageFloodTool(QgsMapTool):
             return
 
         if e.key() == Qt.Key_C:
-            if self.imageFlood.clearFloodCanvas():
-                self._setTextMessage(f"clear - {self.imageFlood.totalFlood()} images")
+            total = self.imageFlood.totalFlood() 
+            if not total:
+                return
+
+            msg = f"Clear {total} images?"
+            ret = QMessageBox.question(None, self.PLUGINNAME, msg, QMessageBox.Yes | QMessageBox.No, QMessageBox.No )
+            if ret == QMessageBox.Yes:
+                self.imageFlood.clearFloodCanvas()
+                self._setTextMessage(f"Delete {total} images")
             return
 
     def setLayerFlood(self, layer):
