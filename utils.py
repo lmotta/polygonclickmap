@@ -57,7 +57,6 @@ class CanvasImage():
         self.mapCanvas = canvas
         # Set by process
         self.extent = None
-        self.rasters = None
         self.dataset = None # set by process.finished
 
     def rasterLayers(self):
@@ -124,11 +123,7 @@ class CanvasImage():
             self.dataset = createDataset( image )
 
         self.dataset = None
-        # rasters = self.rasterLayers()
-        # if not len( rasters ):
-        #     return
         self.extent = self.mapCanvas.extent()
-        # self.rasters = rasters
         
         settings = QgsMapSettings( self.mapCanvas.mapSettings() )
         settings.setBackgroundColor( QColor( Qt.transparent ) )
@@ -139,7 +134,6 @@ class CanvasImage():
         job.waitForFinished()
 
     def changedCanvas(self):
-        # return not ( self.rasters == self.rasterLayers() and self.extent == self.mapCanvas.extent() )
         return not self.extent == self.mapCanvas.extent()
 
 
