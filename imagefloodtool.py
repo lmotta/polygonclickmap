@@ -56,8 +56,8 @@ class ImageFlood():
     def changedCanvas(self):
         return self.canvasImage.changedCanvas()
 
-    def needSavePolygon(self):
-        return self.canvasImage.changedCanvas() and len( self.arrys_flood )
+    # def needSavePolygon(self):
+    #     return self.canvasImage.changedCanvas() and len( self.arrys_flood )
 
     def updateCanvasImage(self):
         self.arrys_flood *= 0
@@ -104,8 +104,8 @@ class ImageFlood():
         return totalPixels
 
     def addFloodCanvas(self, pointCanvas):
-        if self.canvasImage.changedCanvas():
-            self.updateCanvasImage()
+        # if self.canvasImage.changedCanvas():
+        #     self.updateCanvasImage()
         arryFlood, totalPixels = self._createFlood( pointCanvas )
         if totalPixels:
             self._updateArraysShowAll( arryFlood, self.lyrSeed )
@@ -292,10 +292,10 @@ class ImageFloodTool(QgsMapTool):
                layer.geometryType() == QgsWkbTypes.PolygonGeometry
 
     def canvasPressEvent(self, e):
-        def savePolygon():
-            if self.layerFlood is None or not self.imageFlood.needSavePolygon():
-                return False
-            return self._savePolygon()
+        # def savePolygon():
+        #     if self.layerFlood is None or not self.imageFlood.needSavePolygon():
+        #         return False
+        #     return self._savePolygon()
 
         if e.button() == Qt.RightButton:
             self.imageFlood.enabledFloodCanvas( False )
@@ -313,8 +313,12 @@ class ImageFloodTool(QgsMapTool):
         self.imageFlood.setLayerSeed( e.mapPoint() )
         self.pointCanvas = e.originalPixelPoint()
 
-        if savePolygon():
-            self.hasPressPoint = False # Escape canvasMoveEvent
+        if self.imageFlood.changedCanvas():
+            if self.imageFlood.totalFlood():
+                self._savePolygon()
+                self.hasPressPoint = False # Escape canvasMoveEvent
+                return
+            self.imageFlood.updateCanvasImage()
 
     def canvasMoveEvent(self, e):
         # Always e.button() = 0
@@ -322,8 +326,8 @@ class ImageFloodTool(QgsMapTool):
         if not self.hasPressPoint or not self.imageFlood.existsRasterLayer():
             return
 
-        if self.imageFlood.changedCanvas():
-            self.imageFlood.updateCanvasImage()
+        # if self.imageFlood.changedCanvas():
+        #     self.imageFlood.updateCanvasImage()
 
         pointCanvas = e.originalPixelPoint()
         self.threshFloodMove = self.imageFlood.calculateThreshold( self.pointCanvas, pointCanvas )
@@ -438,7 +442,8 @@ class ImageFloodTool(QgsMapTool):
             self.toolBack = self.mapCanvas.mapTool()
         
     def _savePolygon(self):
-        msg = f"Add features from images to \"{self.layerFlood.name()}\" ?"
+        totalImages = self.imageFlood.totalFlood()
+        msg = f"Add features from images({totalImages}) to \"{self.layerFlood.name()}\" ?"
         ret = QMessageBox.question(None, self.PLUGINNAME, msg, QMessageBox.Yes | QMessageBox.No )
         if ret == QMessageBox.Yes:
             args = [ self.layerFlood ]
@@ -448,8 +453,10 @@ class ImageFloodTool(QgsMapTool):
             msg = 'Flood: Polygonize - Missing features' if not totalFeats \
                 else f"Flood: Polygonize - {totalFeats} features added"
             self.lblMessageFlood.setText( msg )
-            return True
-        return False
+            return
+
+        self.imageFlood.clearFloodCanvas()
+        self._setTextMessage(f"Delete {totalImages} images")
 
     def _setTextMessage(self, message):
         self.lblMessageFlood.setText(f"Flood({self.layerFlood.name()}): {message}")

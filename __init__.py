@@ -46,7 +46,6 @@ class ImageFloodToolPlugin(QObject):
 
         self.action = None
         self.tool = ImageFloodTool( iface )
-        self.tool.deactivated.connect( self._deactivatedTool )
         self.layerIdsConnected = [] # Exists connections 
 
     def initGui(self):
@@ -81,19 +80,10 @@ class ImageFloodToolPlugin(QObject):
         if checked:
             layer = self.iface.activeLayer()
             self.tool.setLayerFlood( layer )
-            # if not self.mapCanvas.mapTool() == self.tool:
-            #     self.mapCanvas.setMapTool( self.tool )
             self.mapCanvas.setMapTool( self.tool )
             return
 
         self.action.setChecked( True )
-
-        # if self.mapCanvas.mapTool() != self.tool:
-        #     layer = self.iface.activeLayer()
-        #     self.tool.setLayerFlood( layer )
-        #     self.mapCanvas.setMapTool( self.tool)
-        #     return
-        # self.action.setChecked( True )
         
     @pyqtSlot('QgsMapLayer*')
     def _currentLayerChanged(self, layer):
@@ -101,8 +91,6 @@ class ImageFloodToolPlugin(QObject):
             isEditabled = layer.isEditable()
             self.action.setEnabled( isEditabled )
             if isEditabled:
-                # checked =  layer == self.tool.layerFlood
-                # self.action.setChecked( checked )
                 if self.tool.isActive() and not layer == self.tool.layerFlood:
                     self.tool.setLayerFlood( layer )
                 return
@@ -116,17 +104,11 @@ class ImageFloodToolPlugin(QObject):
         self.action.setEnabled(False)
 
     @pyqtSlot()
-    def _deactivatedTool(self):
-        pass
-        # self.action.setChecked( False )
-
-    @pyqtSlot()
     def _editingStarted(self):
         self.action.setEnabled( True )
         if self.tool.isActive():
             self.tool.setLayerFlood( self.iface.activeLayer() )
             return
-        #self.action.setChecked( False )
 
     @pyqtSlot()
     def _editingStopped(self):
