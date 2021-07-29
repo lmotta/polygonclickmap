@@ -30,7 +30,11 @@ from qgis.PyQt.QtCore import QObject, pyqtSlot
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
 
+from qgis.core import QgsProject
+
 from .imagefloodtool import ImageFloodTool
+
+from .utils import connectSignalSlot
 
 import os
 
@@ -43,10 +47,15 @@ class ImageFloodToolPlugin(QObject):
         super().__init__()
         self.iface = iface
         self.mapCanvas = iface.mapCanvas() 
+        self.project = QgsProject.instance()
 
         self.action = None
         self.tool = ImageFloodTool( iface )
-        self.layerIdsConnected = [] # Exists connections 
+
+        self.editingSignalSlot = lambda layer: {
+            layer.editingStarted: self._editingStarted,
+            layer.editingStopped: self._editingStopped
+        }.items()
 
     def initGui(self):
         title = "Create polygon from image using flood algorithm"
@@ -95,11 +104,8 @@ class ImageFloodToolPlugin(QObject):
                     self.tool.setLayerFlood( layer )
                 return
 
-            if not layer.id() in self.layerIdsConnected:
-                layer.editingStarted.connect( self._editingStarted )
-                layer.editingStopped.connect( self._editingStopped )
-                self.layerIdsConnected.append( layer.id() )
-            return
+            for signal, slot in self.editingSignalSlot( layer ):
+                connectSignalSlot( signal, slot )
 
         self.action.setEnabled(False)
 

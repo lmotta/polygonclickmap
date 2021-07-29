@@ -1,5 +1,5 @@
 
-from qgis.PyQt.QtCore import Qt, QByteArray, QBuffer, QIODevice
+from qgis.PyQt.QtCore import Qt, QByteArray, QBuffer, QIODevice, pyqtSignal
 from qgis.PyQt.QtGui import QImage, QColor
 
 from qgis.core import (
@@ -7,8 +7,7 @@ from qgis.core import (
     QgsMapLayer,
     QgsMapSettings, 
     QgsMapRendererParallelJob,
-    QgsCoordinateTransform,
-    QgsRectangle
+    QgsCoordinateTransform
 )
 from qgis.gui import QgsMapCanvasItem 
 
@@ -224,3 +223,15 @@ def createDatasetMem(arry, geoTransform, spatialRef, nodata=None):
     ds.SetGeoTransform( geoTransform )
     ds.SetSpatialRef( spatialRef )
     return ds
+
+
+def connectSignalSlot(signal, slot):
+    """ Connect signal with slot if not connected
+    :param signal: signal of QObject
+    :param slot:   slot of QObject
+    """
+    try:
+        signal.disconnect( slot )
+    except TypeError:
+        pass
+    signal.connect( slot )
