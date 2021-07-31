@@ -1,9 +1,9 @@
 [general]
-name:Polygon by clicking in map
+name:Polygon by clicking in map image.
 description:Plugin tool for create polygon from image shown in map.
-about:From the click in map, the tool can create automatic th polygon,
-      using the threshold define when drag the tool.
-      If the drag is to right or up the  threshold increase, otherwise, decrease.
+about:From the click in map, the tool create automatic a polygon,
+      for editabled layer, using the threshold define when drag the tool.
+      If the drag is to right or up, the threshold increases, otherwise it decreases.
 version:0.1
 qgisMinimumVersion:3.16
 
