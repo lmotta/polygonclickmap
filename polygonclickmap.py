@@ -50,6 +50,8 @@ from .utils import MapItemFlood, CanvasImage, CalculateArrayFlood, createDataset
 
 class ImageFlood(QObject):
     finishMovingFloodCanvas = pyqtSignal()
+    finishAddedFloodCanvas = pyqtSignal(int)
+    finishAddedMoveFloodCanvas = pyqtSignal(int)
     def __init__(self, mapCanvas):
         super().__init__()
         self.canvasImage = CanvasImage( mapCanvas )
@@ -144,32 +146,62 @@ class ImageFlood(QObject):
             return dataResult
 
         self.arryFloodMove = None
-        task = QgsTask.fromFunction('PolygonClickImage Task', run, on_finished=finished )
+        task = QgsTask.fromFunction('PolygonClickImage moving', run, on_finished=finished )
         self.taskManager.addTask( task )
         # Debug
         # r = run( task )
         # finished( None, r )
 
     def addFloodCanvas(self, pointCanvas):
-        # if self.canvasImage.changedCanvas():
-        #     self.updateCanvasImage()
-        arryFlood, totalPixels = self._createFlood( pointCanvas )
-        if totalPixels:
-            self._updateArraysShowAll( arryFlood, self.lyrSeed )
-            return totalPixels
+        def finished(exception, dataResult):
+            layers = [ self.lyrSeed ]
+            if 'rasterFlood' in dataResult:
+                layers.append( dataResult['rasterFlood'] )
+            self.mapItem.setLayers( layers )
+            self.mapItem.updateCanvas()
+            self.finishAddedFloodCanvas.emit( dataResult['totalPixels'] )
 
-        if len( self.arrys_flood ):
-            self.mapItem.setLayers( [ self.lyrSeed,  self._rasterFlood( self._reduceArrysFlood() ) ] )
-        else:
-            self.mapItem.setLayers( [ self.lyrSeed ] )
-        self.mapItem.updateCanvas()
-        return 0
+        def run(task):
+            arryFlood, totalPixels = self._createFlood( pointCanvas)
+            if totalPixels:
+                self.arrys_flood.append( arryFlood )
+                return {
+                    'totalPixels': totalPixels,
+                    'rasterFlood': self._rasterFlood( self._reduceArrysFlood() )
+                }
+            if len( self.arrys_flood ):
+                return {
+                    'totalPixels': 0,
+                    'rasterFlood': self._rasterFlood( self._reduceArrysFlood() )
+                }
+            return { 'totalPixels': 0 }
+
+        task = QgsTask.fromFunction('PolygonClickImage add flood', run, on_finished=finished )
+        self.taskManager.addTask( task )
+        # Debug
+        # r = run( task )
+        # finished( None, r )
 
     def addFloodMoveCanvas(self, threshFloodMove):
-        self._updateArraysShowAll( self.arryFloodMove, self.lyrSeed )
-        totalPixels = ( self.arryFloodMove == self.calcFlood.flood_value_color ).sum().item()
+        def finished(exception, dataResult):
+            layers = [ self.lyrSeed, dataResult['rasterFlood'] ]
+            self.mapItem.setLayers( layers )
+            self.mapItem.updateCanvas()
+            self.finishAddedMoveFloodCanvas.emit( dataResult['totalPixels'] )
+
+        def run(task):
+            self.arrys_flood.append( self.arryFloodMove )
+            return {
+                'totalPixels': ( self.arryFloodMove == self.calcFlood.flood_value_color ).sum().item(),
+                'rasterFlood': self._rasterFlood( self._reduceArrysFlood() )
+            }
+
         self.calcFlood.threshFlood = threshFloodMove  # Update treshold
-        return totalPixels
+        task = QgsTask.fromFunction('PolygonClickImage add move flood', run, on_finished=finished )
+        self.taskManager.addTask( task )
+        # Debug
+        # r = run( task )
+        # finished( None, r )
 
     def deleteFlood(self):
         if not len( self.arrys_flood ):
@@ -308,11 +340,6 @@ class ImageFlood(QObject):
             result[ bool_b ] = self.calcFlood.flood_value_color
         return result
 
-    def _updateArraysShowAll(self, arryFlood, lyrSeed ):
-        self.arrys_flood.append( arryFlood )
-        self.mapItem.setLayers( [ lyrSeed,  self._rasterFlood( self._reduceArrysFlood() ) ] )
-        self.mapItem.updateCanvas()
-    
     def _setMapItem(self, existsFlood=True):
         layers = [] if not existsFlood else [ self._rasterFlood( self._reduceArrysFlood() ) ]
         self.mapItem.setLayers( layers )
@@ -336,6 +363,8 @@ class PolygonClickMapTool(QgsMapTool):
 
         self.imageFlood = ImageFlood( self.mapCanvas )
         self.imageFlood.finishMovingFloodCanvas.connect( self._finishMovingFloodCanvas )
+        self.imageFlood.finishAddedFloodCanvas.connect( self._finishAddedFloodCanvas )
+        self.imageFlood.finishAddedMoveFloodCanvas.connect( self._finishAddedFloodCanvas )
 
         self.hasPressPoint = False
         self.threshFloodMove = None
@@ -406,17 +435,11 @@ class PolygonClickMapTool(QgsMapTool):
             return
 
         if not self.threshFloodMove: # canvasPressEvent
-            self._setTextTreshold( self.imageFlood.getCurrentThreshold() )
-            totalPixels = self.imageFlood.addFloodCanvas( self.pointCanvas )
-            msg = f"{self.imageFlood.totalFlood()} images"
-            msg = f"{msg} - Last image added {totalPixels} pixels" if totalPixels \
-                else f"{msg} - Not added images( no pixels found)"
-            self._setTextMessage( msg )
+            self.imageFlood.addFloodCanvas( self.pointCanvas )
             return
         
         if not self.movingFloodCanvas:
-            self._finishMovingFloodCanvas()
-
+            self.imageFlood.addFloodMoveCanvas( self.threshFloodMove )
 
     def keyReleaseEvent(self, e):
         key = e.key()
@@ -563,11 +586,14 @@ class PolygonClickMapTool(QgsMapTool):
     @pyqtSlot()
     def _finishMovingFloodCanvas(self):
         self.movingFloodCanvas = False
-        if not self.hasPressPoint: # canvasReleaseEvent
-            totalPixels = self.imageFlood.addFloodMoveCanvas( self.threshFloodMove )
-            msg = f"{self.imageFlood.totalFlood()} images - Last image added {totalPixels} pixels"
-            self._setTextMessage( msg )
 
+    @pyqtSlot(int)
+    def _finishAddedFloodCanvas(self, totalPixels):
+        self._setTextTreshold( self.imageFlood.getCurrentThreshold() )
+        msg = f"{self.imageFlood.totalFlood()} images"
+        msg = f"{msg} - Last image added {totalPixels} pixels" if totalPixels \
+            else f"{msg} - Not added images( no pixels found)"
+        self._setTextMessage( msg )
 
 
 def saveShp(geoms, srs):
