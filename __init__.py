@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
 /***************************************************************************
-Name                 : Image flood tool
-Description          : Plugin for create polygon from the image using flood algorithm.
-Date                 : July, 2021
+Name                 : Create polygon by clicking in map.
+Description          : Plugin for create polygon by clicking in map.
+Date                 : August, 2021
 copyright            : (C) 2021 by Luiz Motta
 email                : motta.luiz@gmail.com
 
@@ -20,7 +20,7 @@ email                : motta.luiz@gmail.com
 """
 
 __author__ = 'Luiz Motta'
-__date__ = '2021-07-01'
+__date__ = '2021-08-01'
 __copyright__ = '(C) 2021, Luiz Motta'
 __revision__ = '$Format:%H$'
 
@@ -32,16 +32,16 @@ from qgis.PyQt.QtWidgets import QAction
 
 from qgis.core import QgsProject
 
-from .imagefloodtool import ImageFloodTool
+from .polygonclickmap import PolygonClickMapTool
 
 from .utils import connectSignalSlot
 
 import os
 
 def classFactory(iface):
-    return ImageFloodToolPlugin( iface )
+    return PolygonClickMapPlugin( iface )
 
-class ImageFloodToolPlugin(QObject):
+class PolygonClickMapPlugin(QObject):
 
     def __init__(self, iface):
         super().__init__()
@@ -50,7 +50,7 @@ class ImageFloodToolPlugin(QObject):
         self.project = QgsProject.instance()
 
         self.action = None
-        self.tool = ImageFloodTool( iface )
+        self.tool = PolygonClickMapTool( iface )
 
         self.editingSignalSlot = lambda layer: {
             layer.editingStarted: self._editingStarted,
@@ -58,10 +58,10 @@ class ImageFloodToolPlugin(QObject):
         }.items()
 
     def initGui(self):
-        title = "Create polygon from image using flood algorithm"
-        icon = QIcon( os.path.join( os.path.dirname(__file__), 'imagefloodtool.svg' ) )
+        title = "Create polygon by clicking in map"
+        icon = QIcon( os.path.join( os.path.dirname(__file__), 'polygonclickmap.svg' ) )
         self.action = QAction( icon, title, self.iface.mainWindow() )
-        self.action.setObjectName( "MapItemImageFlood" )
+        self.action.setObjectName('PolygonClickMap')
         self.action.setWhatsThis( title )
         self.action.setStatusTip( title )
         self.action.triggered.connect( self.run )

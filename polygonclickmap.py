@@ -1,3 +1,28 @@
+"""
+/***************************************************************************
+Name                 : Create polygon by clicking in map.
+Description          : Plugin for create polygon by clicking in map.
+Date                 : August, 2021
+copyright            : (C) 2021 by Luiz Motta
+email                : motta.luiz@gmail.com
+
+ ***************************************************************************/
+
+/***************************************************************************
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
+ ***************************************************************************/
+"""
+
+__author__ = 'Luiz Motta'
+__date__ = '2021-08-01'
+__copyright__ = '(C) 2021, Luiz Motta'
+__revision__ = '$Format:%H$'
+
 
 from qgis.PyQt.QtCore import Qt, QVariant, QDateTime, pyqtSlot
 from qgis.PyQt.QtWidgets import QLabel, QFrame, QMessageBox
@@ -272,7 +297,7 @@ class ImageFlood():
         self.mapItem.updateCanvas()
 
 
-class ImageFloodTool(QgsMapTool):
+class PolygonClickMapTool(QgsMapTool):
     PLUGINNAME = 'Image flood tool'
     def __init__(self, iface):
         self.mapCanvas = iface.mapCanvas()
