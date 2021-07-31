@@ -307,6 +307,7 @@ class PolygonClickMapTool(QgsMapTool):
         self.statusBar = iface.mainWindow().statusBar()
         self.lblThreshFlood, self.lblMessageFlood = None, None
         self.toolBack = None # self.setLayer
+        self.toolCursor = QgsApplication.getThemeCursor( QgsApplication.CapturePoint ) #
 
         self.activated.connect( self._activatedTool )
         self.deactivated.connect( self._deactivatedTool )
@@ -334,9 +335,8 @@ class PolygonClickMapTool(QgsMapTool):
             self.imageFlood.enabledFloodCanvas( False )
             return
 
-        rastersCanvas = self.imageFlood.getRasterCanvas()
-        if not len( rastersCanvas ):
-            self.imageFlood.rasterLayers = rastersCanvas
+        self.imageFlood.rastersCanvas = self.imageFlood.getRasterCanvas()
+        if not len( self.imageFlood.rastersCanvas ):
             return
         
         self.hasPressPoint = True
@@ -346,9 +346,6 @@ class PolygonClickMapTool(QgsMapTool):
 
         self.imageFlood.setLayerSeed( e.mapPoint() )
         self.pointCanvas = e.originalPixelPoint()
-
-        if not rastersCanvas == self.imageFlood.rastersCanvas:
-            self.imageFlood.rastersCanvas = rastersCanvas
 
         if self.imageFlood.changedCanvas():
             if self.imageFlood.totalFlood():
@@ -528,6 +525,7 @@ class PolygonClickMapTool(QgsMapTool):
         self._setTextMessage(f"{self.imageFlood.totalFlood()} images")
         self.statusBar.addPermanentWidget( self.lblThreshFlood, 0)
         self._setTextTreshold( self.imageFlood.getCurrentThreshold() )
+        self.setCursor( self.toolCursor )
 
     @pyqtSlot()
     def _deactivatedTool(self):
