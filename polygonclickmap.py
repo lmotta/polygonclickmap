@@ -24,14 +24,18 @@ __copyright__ = '(C) 2021, Luiz Motta'
 __revision__ = '$Format:%H$'
 
 
-from qgis.PyQt.QtCore import Qt, QVariant, QDateTime, pyqtSlot
+from qgis.PyQt.QtCore import (
+    Qt, QVariant, QDateTime,
+    QObject, pyqtSlot, pyqtSignal
+)
 from qgis.PyQt.QtWidgets import QLabel, QFrame, QMessageBox
 
 from qgis.core import (
     QgsProject, QgsApplication,
     QgsMapLayer, QgsVectorLayer, QgsRasterLayer,
     QgsGeometry, QgsFeature, QgsWkbTypes,
-    QgsCoordinateReferenceSystem, QgsCoordinateTransform
+    QgsCoordinateReferenceSystem, QgsCoordinateTransform,
+    QgsTask
 )
 from qgis.gui import QgsMapTool
 
@@ -43,11 +47,16 @@ import os
 
 from .utils import MapItemFlood, CanvasImage, CalculateArrayFlood, createDatasetMem
 
-class ImageFlood():
+
+class ImageFlood(QObject):
+    finishMovingFloodCanvas = pyqtSignal()
     def __init__(self, mapCanvas):
+        super().__init__()
         self.canvasImage = CanvasImage( mapCanvas )
         self.mapItem = MapItemFlood( mapCanvas )
         self.calcFlood = CalculateArrayFlood()
+
+        self.taskManager = QgsApplication.taskManager()
 
         self.arrys_flood = []
         self.arrys_flood_delete = []
@@ -117,16 +126,29 @@ class ImageFlood():
         self._setMapItem( False )
         return True
 
-    def showFloodMovingCanvas(self, pointCanvas, threshFlood):
+    def movingFloodCanvas(self, pointCanvas, threshFlood):
+        def finished(exception, dataResult):
+            layers = [ self.lyrSeed ]
+            if dataResult['totalPixels']:
+                layers.append( dataResult['rasterFlood'] )
+            self.mapItem.setLayers( layers )
+            self.mapItem.updateCanvas()
+            self.finishMovingFloodCanvas.emit()
+
+        def run(task):
+            arryFlood, totalPixels = self._createFlood( pointCanvas, threshFlood )
+            dataResult = { 'totalPixels': totalPixels }
+            if totalPixels:
+                self.arryFloodMove = arryFlood
+                dataResult['rasterFlood'] = self._rasterFlood( arryFlood )
+            return dataResult
+
         self.arryFloodMove = None
-        layers = [ self.lyrSeed ]
-        arryFlood, totalPixels = self._createFlood( pointCanvas, threshFlood )
-        if totalPixels:
-            layers.append( self._rasterFlood( arryFlood )  )
-            self.arryFloodMove = arryFlood
-        self.mapItem.setLayers( layers )
-        self.mapItem.updateCanvas()
-        return totalPixels
+        task = QgsTask.fromFunction('PolygonClickImage Task', run, on_finished=finished )
+        self.taskManager.addTask( task )
+        # Debug
+        # r = run( task )
+        # finished( None, r )
 
     def addFloodCanvas(self, pointCanvas):
         # if self.canvasImage.changedCanvas():
@@ -313,8 +335,11 @@ class PolygonClickMapTool(QgsMapTool):
         self.deactivated.connect( self._deactivatedTool )
 
         self.imageFlood = ImageFlood( self.mapCanvas )
+        self.imageFlood.finishMovingFloodCanvas.connect( self._finishMovingFloodCanvas )
+
         self.hasPressPoint = False
         self.threshFloodMove = None
+        self.movingFloodCanvas = False
 
         self.pointCanvas = None
         
@@ -341,8 +366,9 @@ class PolygonClickMapTool(QgsMapTool):
         
         self.hasPressPoint = True
         
-        self.threshFloodMove = None
+        self.movingFloodCanvas = False
         self.arryFloodMove = None
+        self.threshFloodMove = None
 
         self.imageFlood.setLayerSeed( e.mapPoint() )
         self.pointCanvas = e.originalPixelPoint()
@@ -359,12 +385,14 @@ class PolygonClickMapTool(QgsMapTool):
         if not self.hasPressPoint or not len( self.imageFlood.rastersCanvas):
             return
 
+        if self.movingFloodCanvas:
+            return
+
         pointCanvas = e.originalPixelPoint()
         self.threshFloodMove = self.imageFlood.calculateThreshold( self.pointCanvas, pointCanvas )
         self._setTextTreshold( self.threshFloodMove )
-        totalPixels = self.imageFlood.showFloodMovingCanvas( self.pointCanvas, self.threshFloodMove )
-        if not totalPixels:
-            self.threshFloodMove = None
+        self.movingFloodCanvas = True
+        self.imageFlood.movingFloodCanvas( self.pointCanvas, self.threshFloodMove )
 
     def canvasReleaseEvent(self, e):
         if not len( self.imageFlood.rastersCanvas):
@@ -377,7 +405,7 @@ class PolygonClickMapTool(QgsMapTool):
             self.imageFlood.enabledFloodCanvas()
             return
 
-        if self.threshFloodMove is None:
+        if not self.threshFloodMove: # canvasPressEvent
             self._setTextTreshold( self.imageFlood.getCurrentThreshold() )
             totalPixels = self.imageFlood.addFloodCanvas( self.pointCanvas )
             msg = f"{self.imageFlood.totalFlood()} images"
@@ -386,9 +414,9 @@ class PolygonClickMapTool(QgsMapTool):
             self._setTextMessage( msg )
             return
         
-        totalPixels = self.imageFlood.addFloodMoveCanvas( self.threshFloodMove )
-        msg = f"{self.imageFlood.totalFlood()} images - Last image added {totalPixels} pixels"
-        self._setTextMessage( msg )
+        if not self.movingFloodCanvas:
+            self._finishMovingFloodCanvas()
+
 
     def keyReleaseEvent(self, e):
         key = e.key()
@@ -531,6 +559,14 @@ class PolygonClickMapTool(QgsMapTool):
     def _deactivatedTool(self):
         self.statusBar.removeWidget( self.lblMessageFlood )
         self.statusBar.removeWidget( self.lblThreshFlood )
+
+    @pyqtSlot()
+    def _finishMovingFloodCanvas(self):
+        self.movingFloodCanvas = False
+        if not self.hasPressPoint: # canvasReleaseEvent
+            totalPixels = self.imageFlood.addFloodMoveCanvas( self.threshFloodMove )
+            msg = f"{self.imageFlood.totalFlood()} images - Last image added {totalPixels} pixels"
+            self._setTextMessage( msg )
 
 
 

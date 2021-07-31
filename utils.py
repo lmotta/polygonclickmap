@@ -170,6 +170,24 @@ class CalculateArrayFlood():
         self.threshSieve = 100
 
     def get(self, arraySource, seed, threshFlood=None):
+        def sieve(arry):
+            ds = gdal_array.OpenArray( arry ) # Read only
+            dsSieve = gdal.GetDriverByName('MEM').CreateCopy('', ds )
+            ds = None
+            band_sieve = dsSieve.GetRasterBand(1)
+            gdal.SieveFilter( srcBand=band_sieve, maskBand=None, dstBand=band_sieve, threshold=self.threshSieve, connectedness=8 )
+            arry_sieve = band_sieve.ReadAsArray()
+            for b in range( 1, dsSieve.RasterCount ):
+                band = dsSieve.GetRasterBand( b+1 )
+                gdal.SieveFilter( srcBand=band, maskBand=None, dstBand=band, threshold=self.threshSieve, connectedness=8 )
+                arry_band = band.ReadAsArray()
+                bool_s = ( arry_sieve == self.flood_value )
+                bool_b = ( arry_band == self.flood_value )
+                arry_sieve[ bool_s * bool_b ] = self.flood_value
+                arry_sieve[ ~(bool_s * bool_b) ] = self.flood_out
+            dsSieve = None
+            return arry_sieve
+            
         as_image = (1,2,0)  # rows, columns, bands
         as_raster = (2,0,1) # bands, rows, columns
         #
@@ -184,25 +202,9 @@ class CalculateArrayFlood():
         arry = np.transpose( arry, as_raster )
         bool_out = ~(arry == self.flood_value)
         arry[ bool_out ] = self.flood_out
-        # Sieve
-        ds = gdal_array.OpenArray( arry ) # Read only
-        dsSieve = gdal.GetDriverByName('MEM').CreateCopy('', ds )
-        ds = None
-        band_sieve = dsSieve.GetRasterBand(1)
-        gdal.SieveFilter( srcBand=band_sieve, maskBand=None, dstBand=band_sieve, threshold=self.threshSieve, connectedness=8 )
-        arry_sieve = band_sieve.ReadAsArray()
-        for b in range( 1, dsSieve.RasterCount ):
-            band = dsSieve.GetRasterBand( b+1 )
-            gdal.SieveFilter( srcBand=band, maskBand=None, dstBand=band, threshold=self.threshSieve, connectedness=8 )
-            arry_band = band.ReadAsArray()
-            bool_s = ( arry_sieve == self.flood_value )
-            bool_b = ( arry_band == self.flood_value )
-            arry_sieve[ bool_s * bool_b ] = self.flood_value
-            arry_sieve[ ~(bool_s * bool_b) ] = self.flood_out
-        dsSieve = None
-
-        arry_sieve[ arry_sieve == self.flood_value ] = self.flood_value_color
-        return arry_sieve
+        arry = sieve( arry )
+        arry[ arry == self.flood_value ] = self.flood_value_color
+        return arry
 
     def getThresholdFlood(self, point1, point2):
         minDelta = 1
