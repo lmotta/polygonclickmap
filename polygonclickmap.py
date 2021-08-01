@@ -40,7 +40,7 @@ from qgis.core import (
 from qgis.gui import QgsMapTool
 
 from osgeo import gdal, ogr
-QDateTime
+
 from scipy import ndimage
 
 import os
@@ -177,10 +177,10 @@ class ImageFlood(QObject):
             return { 'totalPixels': 0 }
 
         task = QgsTask.fromFunction('PolygonClickImage add flood', run, on_finished=finished )
-        self.taskManager.addTask( task )
+        # self.taskManager.addTask( task )
         # Debug
-        # r = run( task )
-        # finished( None, r )
+        r = run( task )
+        finished( None, r )
 
     def addFloodMoveCanvas(self, threshFloodMove):
         def finished(exception, dataResult):

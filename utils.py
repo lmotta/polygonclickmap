@@ -38,9 +38,6 @@ from qgis.gui import QgsMapCanvasItem
 
 from osgeo import gdal, gdal_array, osr
 
-from PIL import Image, ImageDraw
-import numpy as np
-
 
 class MapItemFlood(QgsMapCanvasItem):
     def __init__(self, mapCanvas):
@@ -187,24 +184,53 @@ class CalculateArrayFlood():
                 arry_sieve[ ~(bool_s * bool_b) ] = self.flood_out
             dsSieve = None
             return arry_sieve
+
+        def floodfill(array, xy, thresh):
+            # Adaptation from https://github.com/python-pillow/Pillow/ src/PIL/ImageDraw.py 
+            # 
+            def isSameValue(row, col, value_out):
+                for idx in range( n_bands ):
+                    if abs( value_out[ idx ] - array[ idx, row, col ].item() ) > thresh:
+                        return False
+                return True
             
-        as_image = (1,2,0)  # rows, columns, bands
-        as_raster = (2,0,1) # bands, rows, columns
-        #
-        n_bands = arraySource.shape[0]
-        arry = np.transpose( arraySource, as_image )
-        img_flood = Image.fromarray( arry )
-        l_flood_value = tuple( n_bands * [ self.flood_value ] )
+            row, col = xy[1], xy[0]
+            n_bands = array.shape[0]
+            value_seed = []
+            for idx in range( n_bands ):
+                value_seed.append( array[ idx, row, col ]  )
+                array[ idx, row, col ] = self.flood_value
+
+            edge = { ( row, col ) }
+            full_edge = set()
+            while edge:
+                new_edge = set()
+                for ( row, col ) in edge:  # 4 adjacent method
+                    for (s, t) in ((row + 1, col), (row - 1, col), (row, col + 1), (row, col - 1)):
+                        # If already processed, or if a coordinate is negative, skip
+                        if (s, t) in full_edge or s < 0 or t < 0:
+                            continue
+                        try:
+                            coord = ( s, t )
+                        except (ValueError, IndexError):
+                            pass
+                        else:
+                            full_edge.add( coord )
+                            if isSameValue( coord[0], coord[1], value_seed):
+                                for idx in range( n_bands ):
+                                    array[ idx, coord[0], coord[1] ] = self.flood_value
+                                new_edge.add((s, t))
+                full_edge = edge  # discard pixels processed
+                edge = new_edge
+
+        arry_flood = arraySource.copy()
         tf = threshFlood if threshFlood else self.threshFlood
-        ImageDraw.floodfill( img_flood, seed, l_flood_value, thresh=tf )
-        # Change outside flood
-        arry = np.array( img_flood )
-        arry = np.transpose( arry, as_raster )
-        bool_out = ~(arry == self.flood_value)
-        arry[ bool_out ] = self.flood_out
-        arry = sieve( arry )
-        arry[ arry == self.flood_value ] = self.flood_value_color
-        return arry
+        floodfill( arry_flood, seed, tf )
+        bool_out = ~(arry_flood == self.flood_value)
+        arry_flood[ bool_out ] = self.flood_out
+        arry_flood = sieve( arry_flood )
+        arry_flood[ arry_flood == self.flood_value ] = self.flood_value_color
+        return arry_flood
 
     def getThresholdFlood(self, point1, point2):
         minDelta = 1
