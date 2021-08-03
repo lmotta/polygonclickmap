@@ -163,10 +163,10 @@ class CalculateArrayFlood():
         self.flood_value = None
         self.flood_value_color = 255
         self.flood_out = 0
-        self.threshFlood = 10 # 0 .. 255
+        self.threshFlood = 50 # 0 .. 255
         self.threshSieve = 100
 
-    def get(self, arraySource, seed, threshFlood=None):
+    def get(self, arraySource, seed, threshould=None):
         def sieve(arry):
             ds = gdal_array.OpenArray( arry ) # Read only
             dsSieve = gdal.GetDriverByName('MEM').CreateCopy('', ds )
@@ -185,47 +185,9 @@ class CalculateArrayFlood():
             dsSieve = None
             return arry_sieve
 
-        def floodfill(array, xy, thresh):
-            # Adaptation from https://github.com/python-pillow/Pillow/ src/PIL/ImageDraw.py 
-            # 
-            def isSameValue(row, col, value_out):
-                for idx in range( n_bands ):
-                    if abs( value_out[ idx ] - array[ idx, row, col ].item() ) > thresh:
-                        return False
-                return True
-            
-            row, col = xy[1], xy[0]
-            n_bands = array.shape[0]
-            value_seed = []
-            for idx in range( n_bands ):
-                value_seed.append( array[ idx, row, col ]  )
-                array[ idx, row, col ] = self.flood_value
-
-            edge = { ( row, col ) }
-            full_edge = set()
-            while edge:
-                new_edge = set()
-                for ( row, col ) in edge:  # 4 adjacent method
-                    for (s, t) in ((row + 1, col), (row - 1, col), (row, col + 1), (row, col - 1)):
-                        # If already processed, or if a coordinate is negative, skip
-                        if (s, t) in full_edge or s < 0 or t < 0:
-                            continue
-                        try:
-                            coord = ( s, t )
-                        except (ValueError, IndexError):
-                            pass
-                        else:
-                            full_edge.add( coord )
-                            if isSameValue( coord[0], coord[1], value_seed):
-                                for idx in range( n_bands ):
-                                    array[ idx, coord[0], coord[1] ] = self.flood_value
-                                new_edge.add((s, t))
-                full_edge = edge  # discard pixels processed
-                edge = new_edge
-
         arry_flood = arraySource.copy()
-        tf = threshFlood if threshFlood else self.threshFlood
-        floodfill( arry_flood, seed, tf )
+        t = threshould if threshould else self.threshFlood
+        _floodfill( arry_flood, seed, self.flood_value, t )
         bool_out = ~(arry_flood == self.flood_value)
         arry_flood[ bool_out ] = self.flood_out
         arry_flood = sieve( arry_flood )
@@ -254,6 +216,45 @@ class CalculateArrayFlood():
         return False
 
 
+def _floodfill(array, xy, flood_value, thresh):
+    # Adaptation from https://github.com/python-pillow/Pillow/ src/PIL/ImageDraw.py 
+
+    def isSameValue(row, col, value_out):
+        for idx in range( n_bands ):
+            if abs( value_out[ idx ] - array[ idx, row, col ].item() ) > thresh:
+                return False
+        return True
+    
+    row, col = xy[1], xy[0]
+    n_bands = array.shape[0]
+    value_seed = []
+    for idx in range( n_bands ):
+        value_seed.append( array[ idx, row, col ]  )
+        array[ idx, row, col ] = flood_value
+
+    edge = { ( row, col ) }
+    full_edge = set()
+    while edge:
+        new_edge = set()
+        for ( row, col ) in edge:  # 4 adjacent method
+            for (s, t) in ((row + 1, col), (row - 1, col), (row, col + 1), (row, col - 1)):
+                # If already processed, or if a coordinate is negative, skip
+                if (s, t) in full_edge or s < 0 or t < 0:
+                    continue
+                try:
+                    coord = ( s, t )
+                    array[ idx, coord[0], coord[1] ] # Test index
+                except (ValueError, IndexError):
+                    pass
+                else:
+                    full_edge.add( coord )
+                    if isSameValue( coord[0], coord[1], value_seed):
+                        for idx in range( n_bands ):
+                            array[ idx, coord[0], coord[1] ] = flood_value
+                        new_edge.add((s, t))
+        full_edge = edge  # discard pixels processed
+        edge = new_edge
+
 def createDatasetMem(arry, geoTransform, spatialRef, nodata=None):
     if len( arry.shape ) == 2:
         rows, columns = arry.shape
@@ -277,7 +278,6 @@ def createDatasetMem(arry, geoTransform, spatialRef, nodata=None):
     ds.SetSpatialRef( spatialRef )
     return ds
 
-
 def connectSignalSlot(signal, slot):
     """ Connect signal with slot if not connected
     :param signal: signal of QObject
@@ -288,3 +288,4 @@ def connectSignalSlot(signal, slot):
     except TypeError:
         pass
     signal.connect( slot )
+
