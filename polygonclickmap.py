@@ -131,11 +131,6 @@ class ImageFlood(QObject):
         return len( self.arrys_flood )
  
     def enabledFloodCanvas(self, enabled=True):
-        # if enabled:
-        #     layers = [ self.lyrSeed ]
-        #     if len( self.arrys_flood ):
-        #         layers.append( self._rasterFlood( self.arrys_flood[-1] ) )
-        #     self.mapItem.setLayers( layers )
         self.mapItem.enabled = enabled
         self.mapItem.updateCanvas()
 
@@ -143,7 +138,6 @@ class ImageFlood(QObject):
         self.arrys_flood *= 0
         self.arrys_flood_delete *= 0
         self._setMapItem( False )
-        return True
 
     def movingFloodCanvas(self, pointCanvas, threshFlood):
         def finished(exception, dataResult):
@@ -194,10 +188,10 @@ class ImageFlood(QObject):
             return { 'totalPixels': 0 }
 
         task = QgsTask.fromFunction('PolygonClickImage add flood', run, on_finished=finished )
-        self.taskManager.addTask( task )
+        # self.taskManager.addTask( task )
         # Debug
-        # r = run( task )
-        # finished( None, r )
+        r = run( task )
+        finished( None, r )
 
     def addFloodMoveCanvas(self):
         def finished(exception, dataResult):
@@ -363,7 +357,7 @@ class PolygonClickMapTool(QgsMapTool):
         self.statusBar = iface.mainWindow().statusBar()
         self.spThreshFlood, self.lblMessageFlood = None, None
         self.toolBack = None # self.setLayer
-        self.toolCursor = QgsApplication.getThemeCursor( QgsApplication.CapturePoint ) #
+        self.toolCursor = QgsApplication.getThemeCursor( QgsApplication.CapturePoint )
 
         self.activated.connect( self._activatedTool )
         self.deactivated.connect( self._deactivatedTool )

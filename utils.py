@@ -226,7 +226,7 @@ def _floodfill(array, xy, flood_value, thresh):
         return True
     
     row, col = xy[1], xy[0]
-    n_bands = array.shape[0]
+    ( n_bands, rows, cols ) = array.shape
     value_seed = []
     for idx in range( n_bands ):
         value_seed.append( array[ idx, row, col ]  )
@@ -238,20 +238,15 @@ def _floodfill(array, xy, flood_value, thresh):
         new_edge = set()
         for ( row, col ) in edge:  # 4 adjacent method
             for (s, t) in ((row + 1, col), (row - 1, col), (row, col + 1), (row, col - 1)):
-                # If already processed, or if a coordinate is negative, skip
-                if (s, t) in full_edge or s < 0 or t < 0:
+                # If already processed, or if a coordinate is negative, or a coordinate greather image limit, skip
+                if (s, t) in full_edge or s < 0 or t < 0 or s > (rows-1) or t > (cols-1):
                     continue
-                try:
-                    coord = ( s, t )
-                    array[ idx, coord[0], coord[1] ] # Test index
-                except (ValueError, IndexError):
-                    pass
-                else:
-                    full_edge.add( coord )
-                    if isSameValue( coord[0], coord[1], value_seed):
-                        for idx in range( n_bands ):
-                            array[ idx, coord[0], coord[1] ] = flood_value
-                        new_edge.add((s, t))
+                coord = ( s, t )
+                full_edge.add( coord )
+                if isSameValue( coord[0], coord[1], value_seed):
+                    for idx in range( n_bands ):
+                        array[ idx, coord[0], coord[1] ] = flood_value
+                    new_edge.add((s, t))
         full_edge = edge  # discard pixels processed
         edge = new_edge
 
