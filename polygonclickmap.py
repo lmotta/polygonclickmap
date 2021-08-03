@@ -89,7 +89,19 @@ class ImageFlood(QObject):
         self.canvasImage.dataset = None
 
     def setLayerSeed(self, pointMap):
-        self.lyrSeed = self._createQgsSeedVector( pointMap )
+        def createQgsSeedVector():
+            crs = self.mapItem.mapCanvas.mapSettings().destinationCrs().authid()
+            uri = f"point?crs={crs}"
+            l = QgsVectorLayer( uri, 'seed', 'memory')
+            prov = l.dataProvider()
+            f = QgsFeature()
+            f.setGeometry( QgsGeometry.fromPointXY( pointMap ) )
+            prov.addFeature( f )
+            l.updateExtents()
+            l.loadNamedStyle( self.stylePoint )
+            return l
+
+        self.lyrSeed = createQgsSeedVector()
 
     def updateCanvasImage(self):
         self.arrys_flood *= 0
@@ -297,18 +309,6 @@ class ImageFlood(QObject):
 
         self._setMapItem( False )
         return totalFeats
-
-    def _createQgsSeedVector(self, pointMap):
-        crs = self.mapItem.mapCanvas.mapSettings().destinationCrs().authid()
-        uri = f"point?crs={crs}"
-        l = QgsVectorLayer( uri, 'seed', 'memory')
-        prov = l.dataProvider()
-        f = QgsFeature()
-        f.setGeometry( QgsGeometry.fromPointXY( pointMap ) )
-        prov.addFeature( f )
-        l.updateExtents()
-        l.loadNamedStyle( self.stylePoint )
-        return l
 
     def _rasterFlood(self, arrayFlood):
         if self.existsLinkRasterFlood:
