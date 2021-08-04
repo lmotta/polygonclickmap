@@ -188,10 +188,10 @@ class ImageFlood(QObject):
             return { 'totalPixels': 0 }
 
         task = QgsTask.fromFunction('PolygonClickImage add flood', run, on_finished=finished )
-        # self.taskManager.addTask( task )
+        self.taskManager.addTask( task )
         # Debug
-        r = run( task )
-        finished( None, r )
+        # r = run( task )
+        # finished( None, r )
 
     def addFloodMoveCanvas(self):
         def finished(exception, dataResult):
@@ -304,6 +304,9 @@ class ImageFlood(QObject):
         self._setMapItem( False )
         return totalFeats
 
+    def cancelCreateFlood(self):
+        self.calcFlood.cancel = True
+
     def _rasterFlood(self, arrayFlood):
         if self.existsLinkRasterFlood:
             gdal.Unlink( self.filenameRasterFlood )
@@ -330,6 +333,7 @@ class ImageFlood(QObject):
         }
         if not threshFlood is None:
             args['threshould'] = threshFlood
+        self.calcFlood.cancel = False
         arryFlood = self.calcFlood.get( **args )
         totalPixels = ( arryFlood == self.calcFlood.flood_value_color ).sum().item()
         return arryFlood, totalPixels
