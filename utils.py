@@ -163,10 +163,11 @@ class CalculateArrayFlood():
         self.flood_value = None
         self.flood_value_color = 255
         self.flood_out = 0
+        self.minValue, self.maxValue = 1, 254
         self.threshFlood = 50 # 0 .. 255
         self.threshSieve = 100
 
-    def get(self, arraySource, seed, threshould=None):
+    def get(self, arraySource, seed, isCanceled, threshould=None):
         def sieve(arry):
             ds = gdal_array.OpenArray( arry ) # Read only
             dsSieve = gdal.GetDriverByName('MEM').CreateCopy('', ds )
@@ -207,6 +208,8 @@ class CalculateArrayFlood():
             while edge:
                 new_edge = set()
                 for ( row, col ) in edge:  # 4 adjacent method
+                    if isCanceled():
+                        return None
                     for (s, t) in ((row + 1, col), (row - 1, col), (row, col + 1), (row, col - 1)):
                         # If already processed, or if a coordinate is negative, or a coordinate greather image limit, skip
                         if (s, t) in full_edge or s < 0 or t < 0 or s > (rows-1) or t > (cols-1):
@@ -235,10 +238,10 @@ class CalculateArrayFlood():
         dX, dY = delta.x(), delta.y()
         delta = dX if abs( dX) > abs( dY ) else -1*dY
         threshFlood = self.threshFlood + delta
-        if threshFlood < minDelta:
-            threshFlood = minDelta
-        if threshFlood > maxDelta:
-            threshFlood = maxDelta
+        if threshFlood < self.minValue:
+            threshFlood = self.minValue
+        if threshFlood > self.maxValue:
+            threshFlood = self.maxValue
         return threshFlood
 
     def setFloodValue(self, dsImage):
