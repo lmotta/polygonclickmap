@@ -61,6 +61,8 @@ class ImageFlood(QObject):
         self.mapItem = MapItemFlood( mapCanvas )
         self.calcFlood = CalculateArrayFlood()
 
+        self.mapCanvas = mapCanvas
+
         self.taskManager = QgsApplication.taskManager()
         self.taskCreateFlood = None
 
@@ -84,7 +86,8 @@ class ImageFlood(QObject):
         self.fieldsName = {
             'rasters': 'Visibles rasters in map',
             'user': 'User of QGIS',
-            'datetime': 'Date time when features will be add'
+            'datetime': 'Date time when features will be add',
+            'scale': 'Scale of map'
         }
 
     def __del__(self):
@@ -285,6 +288,11 @@ class ImageFlood(QObject):
                 value = QDateTime.currentDateTime().toString( Qt.ISODate )
                 key_value = fieldsName[ key ]
                 fieldsValues[ key_value ] = value
+            key = 'scale'
+            if  key in fieldsName:
+                value = self.mapCanvas.scale()
+                key_value = fieldsName[ key ]
+                fieldsValues[ key_value ] = value
             return fieldsValues
 
         layer, ds = polygonizeFlood( self._reduceArrysFlood() )
@@ -381,6 +389,7 @@ class PolygonClickMapTool(QgsMapTool):
         self.toolBack = None # self.setLayer
         self.toolCursor = QgsApplication.getThemeCursor( QgsApplication.CapturePoint )
 
+        QgsProject.instance().layerWillBeRemoved.connect( self._layersWillBeRemoved )
         self.activated.connect( self._activatedTool )
         self.deactivated.connect( self._deactivatedTool )
 
@@ -392,7 +401,7 @@ class PolygonClickMapTool(QgsMapTool):
         self.hasPressPoint = False
         self.startedMoveFlood = False
         self.dtMoveFloodIni = None
-        self.msecondsMoveFlood = 1500
+        self.msecondsMoveFlood = 1000
 
         self.pointCanvas = None
         
@@ -527,9 +536,9 @@ class PolygonClickMapTool(QgsMapTool):
             return
 
     def setLayerFlood(self, layer):
-        def existsFieldNameFlood(layer, name):
+        def existsFieldName(layer, name, type=QVariant.String):
             for field in layer.fields():
-                if field.type() == QVariant.String and field.name() == name:
+                if field.type() == type and field.name() == name:
                     return True
             return False
 
@@ -538,14 +547,17 @@ class PolygonClickMapTool(QgsMapTool):
 
         self.fieldsName = {}
         name = 'imagens'
-        if existsFieldNameFlood( layer, name ):
+        if existsFieldName( layer, name ):
             self.fieldsName['rasters'] = name
         name = 'datahora'
-        if existsFieldNameFlood( layer, name ):
+        if existsFieldName( layer, name ):
             self.fieldsName['datetime'] = name
         name = 'usuario'
-        if existsFieldNameFlood( layer, name ):
+        if existsFieldName( layer, name ):
             self.fieldsName['user'] = name
+        name = 'escala'
+        if existsFieldName( layer, name, QVariant.Double ):
+            self.fieldsName['scale'] = name
 
         msg = f"Current Flood layer is \"{layer.name()}\""
         self.msgBar.popWidget()
@@ -568,7 +580,7 @@ class PolygonClickMapTool(QgsMapTool):
     def _savePolygon(self):
         totalImages = self.imageFlood.totalFlood()
         msg = f"Add features from images to \"{self.layerFlood.name()}\" ?"
-        ret = QMessageBox.question(None, self.PLUGINNAME, msg, QMessageBox.Yes | QMessageBox.No )
+        ret = QMessageBox.question( None, self.PLUGINNAME, msg, QMessageBox.Yes | QMessageBox.No )
         if ret == QMessageBox.Yes:
             totalFeats = self.imageFlood.polygonizeFlood( self.layerFlood, self.fieldsName )
             msg = 'Polygonize - Missing features' if not totalFeats \
@@ -599,6 +611,15 @@ class PolygonClickMapTool(QgsMapTool):
         self.mapCanvas.setMapTool( self.toolBack )
         self.action().setEnabled( False )
         self.layerFlood = None
+
+    @pyqtSlot(str)
+    def _layersWillBeRemoved(self, layerIds):
+        if not self.isActive():
+            return
+
+        if self.layerFlood and self.layerFlood.id() in layerIds:
+            self.imageFlood.clearFloodCanvas()
+            self.layerFlood = None
 
     @pyqtSlot()
     def _activatedTool(self):
