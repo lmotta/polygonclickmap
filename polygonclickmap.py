@@ -320,7 +320,8 @@ class ImageFlood(QObject):
 
     @pyqtSlot(bool)
     def cancelCreateFlood(self, checked):
-        self.taskCreateFlood.cancel()
+        if self.taskCreateFlood:
+            self.taskCreateFlood.cancel()
 
     def _rasterFlood(self, arrayFlood):
         if self.existsLinkRasterFlood:
@@ -390,6 +391,8 @@ class PolygonClickMapTool(QgsMapTool):
 
         self.hasPressPoint = False
         self.startedMoveFlood = False
+        self.dtMoveFloodIni = None
+        self.msecondsMoveFlood = 1500
 
         self.pointCanvas = None
         
@@ -432,6 +435,8 @@ class PolygonClickMapTool(QgsMapTool):
                 return
             self.imageFlood.updateCanvasImage()
 
+        self.dtMoveFloodIni = QDateTime.currentDateTime()
+
     def canvasMoveEvent(self, e):
         # Always e.button() = 0
         if not self.hasPressPoint or not len( self.imageFlood.rastersCanvas ):
@@ -440,10 +445,15 @@ class PolygonClickMapTool(QgsMapTool):
         if self.imageFlood.existsProcessingFlood():
             return
 
-        self.startedMoveFlood = True
         pointCanvas = e.originalPixelPoint()
         treshold = self.imageFlood.calculateThreshold( self.pointCanvas, pointCanvas )
         self._setValueTreshold( treshold )
+
+        mseconds = self.dtMoveFloodIni.msecsTo( QDateTime.currentDateTime() )
+        if mseconds < self.msecondsMoveFlood:
+            return
+
+        self.startedMoveFlood = True
         self.btnCancel.show()
         self.imageFlood.movingFloodCanvas( self.pointCanvas, treshold )
 
@@ -630,6 +640,7 @@ class PolygonClickMapTool(QgsMapTool):
         if not self.hasPressPoint: # canvasReleaseEvent before
             self.imageFlood.addFloodMoveCanvas()
         self.btnCancel.hide()
+        self.dtMoveFloodIni = QDateTime.currentDateTime()
 
     @pyqtSlot(int)
     def _finishAddedFloodCanvas(self, totalPixels):
