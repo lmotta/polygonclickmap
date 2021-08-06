@@ -225,6 +225,9 @@ class CalculateArrayFlood():
             return arry_flood
 
         arry_flood = floodfill()
+        if arry_flood is None:
+            return None
+
         bool_out = ~(arry_flood == self.flood_value)
         arry_flood[ bool_out ] = self.flood_out
         arry_flood = sieve( arry_flood )
