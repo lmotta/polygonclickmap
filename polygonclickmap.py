@@ -55,7 +55,7 @@ class ImageFlood(QObject):
     finishMovingFloodCanvas = pyqtSignal(bool)
     finishAddedFloodCanvas = pyqtSignal(bool, int)
     finishAddedMoveFloodCanvas = pyqtSignal(bool, int)
-    def __init__(self, mapCanvas):
+    def __init__(self, mapCanvas ):
         super().__init__()
         self.canvasImage = CanvasImage( mapCanvas )
         self.mapItem = MapItemFlood( mapCanvas )
@@ -84,10 +84,10 @@ class ImageFlood(QObject):
         self.smooth_offset  = 0.25
 
         self.fieldsName = {
-            'rasters': 'Visibles rasters in map',
-            'user': 'User of QGIS',
-            'datetime': 'Date time when features will be add',
-            'scale': 'Scale of map'
+            'rasters': self.tr('Visibles rasters in map'),
+            'user': self.tr('User of QGIS'),
+            'datetime': self.tr('Date time when features will be add'),
+            'scale': self.tr('Scale of map')
         }
 
     def __del__(self):
@@ -372,7 +372,7 @@ class ImageFlood(QObject):
             self.taskCreateFlood.cancel()
 
 class PolygonClickMapTool(QgsMapTool):
-    PLUGINNAME = 'Image flood tool'
+    PLUGINNAME = 'Polygon Click Map'
     def __init__(self, iface):
         self.mapCanvas = iface.mapCanvas()
         super().__init__( self.mapCanvas )
@@ -460,7 +460,7 @@ class PolygonClickMapTool(QgsMapTool):
 
     def canvasReleaseEvent(self, e):
         if not len( self.imageFlood.rastersCanvas):
-            msg = 'Missing raster layer visible in Map'
+            msg = self.tr('Missing raster layer visible in Map')
             self.msgBar.pushWarning( self.PLUGINNAME, msg )
             return
 
@@ -501,7 +501,7 @@ class PolygonClickMapTool(QgsMapTool):
 
         if e.key() == Qt.Key_P:
             if self.layerFlood is None:
-                msg = 'Missing polygon layer to receive'
+                msg = self.tr('Missing polygon layer to receive')
                 self.msgBar.pushWarning( self.PLUGINNAME, msg )
                 return
             if not self.layerFlood.isEditable():
@@ -510,8 +510,11 @@ class PolygonClickMapTool(QgsMapTool):
                 return
 
             totalFeats = self.imageFlood.polygonizeFlood( self.layerFlood, self.fieldsName )
-            msg = 'Polygonize - Missing features' if not totalFeats \
-                else f"Polygonize - {totalFeats} features added"
+            if not totalFeats:
+                msg = self.tr('Polygonize - Missing features')
+            else:
+                 msg = self.tr('Polygonize - {} features added')
+                 msg = msg.format( totalFeats )
             self._setTextMessage( msg )
             return
 
@@ -551,7 +554,8 @@ class PolygonClickMapTool(QgsMapTool):
         if existsFieldName( layer, name ):
             self.fieldsName['scale'] = name
 
-        msg = f"Current Flood layer is \"{layer.name()}\""
+        msg = self.tr('Current layer is')
+        msg = f"{msg} \"{layer.name()}\""
         self.msgBar.popWidget()
         self.msgBar.pushInfo( self.PLUGINNAME, msg )
 
@@ -565,33 +569,41 @@ class PolygonClickMapTool(QgsMapTool):
 
         self.layerFlood = layer
         if self.lblMessageFlood:
-            self._setTextMessage(f"{self.imageFlood.totalFlood()} images")
+            msg = self.tr('images')
+            self._setTextMessage(f"{self.imageFlood.totalFlood()} {msg}")
         if not self == self.mapCanvas.mapTool():
             self.toolBack = self.mapCanvas.mapTool()
 
     def _savePolygon(self):
         totalImages = self.imageFlood.totalFlood()
-        msg = f"Add features from images to \"{self.layerFlood.name()}\" ?"
+        msg = self.tr('Add features from images to')
+        msg = f"{msg} \"{self.layerFlood.name()}\""
         ret = QMessageBox.question( None, self.PLUGINNAME, msg, QMessageBox.Yes | QMessageBox.No )
         if ret == QMessageBox.Yes:
             totalFeats = self.imageFlood.polygonizeFlood( self.layerFlood, self.fieldsName )
-            msg = 'Polygonize - Missing features' if not totalFeats \
-                else f"Polygonize - {totalFeats} features added"
+            if not totalFeats:
+                msg = self.tr('Polygonize - Missing features')
+            else:
+                msg = self.tr('Polygonize - {} features added')
+                msg = msg.format( totalFeats )
             self._setTextMessage( msg )
             return
 
         self.imageFlood.clearFloodCanvas()
-        self._setTextMessage(f"Delete {totalImages} images")
+        msg = self.tr('Delete {} images')
+        msg = msg.format( totalImages )
+        self._setTextMessage( msg )
 
     def _setTextMessage(self, message):
-        self.lblMessageFlood.setText(f"Flood({self.layerFlood.name()}): {message}")
+        self.lblMessageFlood.setText(f"{self.PLUGINNAME}({self.layerFlood.name()}): {message}")
 
     def _setValueTreshold(self, treshold):
         self.spThreshFlood.setValue( treshold )
 
     @pyqtSlot()
     def _nameChangedLayerFlood(self):
-        msg = f"{self.imageFlood.totalFlood()} images"
+        msg = self.tr('{} images')
+        msg = msg.format( self.imageFlood.totalFlood() )
         self._setTextMessage( msg )
     
     @pyqtSlot()
@@ -632,9 +644,15 @@ class PolygonClickMapTool(QgsMapTool):
             return w
 
         self.lblMessageFlood = createLabel()
-        self._setTextMessage(f"{self.imageFlood.totalFlood()} images")
+        msg = self.tr('{} images')
+        msg = msg.format( self.imageFlood.totalFlood() )
+        self._setTextMessage( msg )
         min, max = self.imageFlood.thresholdMinMax()
-        self.spThreshFlood = createSpin( min, max, 1, 'Treshold:  ', ' (pixel RGB)')
+        msgTreshold = self.tr('Treshold')
+        msgTreshold = f"{msgTreshold}:  "
+        msgRGB = self.tr('(pixel RGB)')
+        msgRGB = f" {msgRGB}"
+        self.spThreshFlood = createSpin( min, max, 1, msgTreshold, msgRGB )
         self._setValueTreshold( self.imageFlood.threshold() )
         self.btnCancel = QPushButton( self.iconCancel, '' )
         self.statusBar.addPermanentWidget( self.btnCancel, 0 )
@@ -655,17 +673,24 @@ class PolygonClickMapTool(QgsMapTool):
         self.btnCancel.hide()
         self.dtMoveFloodIni = QDateTime.currentDateTime()
         if not isOk:
-            self.msgBar.pushCritical( self.PLUGINNAME, 'Canceled by user' )
+            msg = self.tr('Canceled by user')
+            self.msgBar.pushCritical( self.PLUGINNAME, msg )
 
     @pyqtSlot(bool, int)
     def _finishAddedFloodCanvas(self, isOk, totalPixels):
-        msg = f"{self.imageFlood.totalFlood()} images"
-        msg = f"{msg} - Last image added {totalPixels} pixels" if totalPixels \
-            else f"{msg} - Not added images( no pixels found)"
+        msg1 = self.tr('images')
+        msg1 = f"{self.imageFlood.totalFlood()} {msg1}"
+        if totalPixels:
+            msg = self.tr('{} - Last image added {} pixels')
+            msg = msg.format( msg1, totalPixels )
+        else:
+            msg = self.tr('{} - Not added images( no pixels found)')
+            msg = msg.format( msg1 )
         self._setTextMessage( msg )
         self.btnCancel.hide()
         if not isOk:
-            self.msgBar.pushCritical( self.PLUGINNAME, 'Canceled by user' )
+            msg = self.tr('Canceled by user')
+            self.msgBar.pushCritical( self.PLUGINNAME, msg )
 
 
 def saveShp(geoms, srs):

@@ -255,6 +255,7 @@ class CalculateArrayFlood():
                 return True
         return False
 
+
 def createDatasetMem(arry, geoTransform, spatialRef, nodata=None):
     if len( arry.shape ) == 2:
         rows, columns = arry.shape
