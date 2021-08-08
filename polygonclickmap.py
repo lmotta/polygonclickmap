@@ -61,8 +61,6 @@ class ImageFlood(QObject):
         self.mapItem = MapItemFlood( mapCanvas )
         self.calcFlood = CalculateArrayFlood()
 
-        self.mapCanvas = mapCanvas
-
         self.taskManager = QgsApplication.taskManager()
         self.taskCreateFlood = None
 
@@ -82,13 +80,6 @@ class ImageFlood(QObject):
 
         self.smooth_iter = 1
         self.smooth_offset  = 0.25
-
-        self.fieldsName = {
-            'rasters': self.tr('Visibles rasters in map'),
-            'user': self.tr('User of QGIS'),
-            'datetime': self.tr('Date time when features will be add'),
-            'scale': self.tr('Scale of map')
-        }
 
     def __del__(self):
         self.canvasImage.dataset = None
@@ -138,6 +129,10 @@ class ImageFlood(QObject):
     def totalFlood(self):
         return len( self.arrys_flood )
  
+    def rasterCanvasNames(self):
+        value = [ l.name() for l in self.rastersCanvas ]
+        return ','.join( value )
+
     def existsProcessingFlood(self):
         return not self.taskCreateFlood is None
 
@@ -252,7 +247,7 @@ class ImageFlood(QObject):
         self._setMapItem()
         return True
 
-    def polygonizeFlood(self, layerFlood, fieldsName):
+    def polygonizeFlood(self, layerFlood, fieldsValues):
         def polygonizeFlood(arrayFlood):
             tran = self.canvasImage.dataset.GetGeoTransform()
             srs = self.canvasImage.dataset.GetSpatialRef()
@@ -267,31 +262,6 @@ class ImageFlood(QObject):
             #
             return layer, ds
 
-        def populateFieldsValues():
-            fieldsValues = {}
-            key = 'rasters'
-            if key in fieldsName:
-                value = [ l.name() for l in self.rastersCanvas ]
-                value = ','.join( value )
-                key_value = fieldsName[ key ]
-                fieldsValues[ key_value ] = value
-            key = 'user'
-            if  key in fieldsName:
-                value = QgsApplication.userFullName()
-                key_value = fieldsName[ key ]
-                fieldsValues[ key_value ] = value
-            key = 'datetime'
-            if  key in fieldsName:
-                value = QDateTime.currentDateTime().toString( Qt.ISODate )
-                key_value = fieldsName[ key ]
-                fieldsValues[ key_value ] = value
-            key = 'scale'
-            if  key in fieldsName:
-                value = str( int( self.mapCanvas.scale() ) )
-                key_value = fieldsName[ key ]
-                fieldsValues[ key_value ] = value
-            return fieldsValues
-
         layer, ds = polygonizeFlood( self._reduceArrysFlood() )
         totalFeats = layer.GetFeatureCount()
         if not totalFeats:
@@ -302,7 +272,6 @@ class ImageFlood(QObject):
         crsDS.createFromString( layer.GetSpatialRef().ExportToWkt() )
         ct = QgsCoordinateTransform( crsDS, crsLayer, QgsProject.instance() )
         fields = layerFlood.fields()
-        fieldsValues = populateFieldsValues()
         for feat in layer:
             g = QgsGeometry()
             g.fromWkb( feat.GetGeometryRef().ExportToIsoWkb() )
@@ -311,7 +280,10 @@ class ImageFlood(QObject):
             f = QgsFeature( fields )
             f.setGeometry( g )
             for k in fieldsValues:
-                f[ k ] = fieldsValues[ k ]
+                name = fieldsValues[ k ]['name']
+                if name is None:
+                    continue
+                f[ name ] = fieldsValues[ k ]['value']
             layerFlood.addFeature( f )
         ds = None
         layerFlood.updateExtents()
@@ -403,7 +375,28 @@ class PolygonClickMapTool(QgsMapTool):
         
         self.stylePoylgon = os.path.join( os.path.dirname(__file__), 'polygonflood.qml' )
         self.layerFlood = None
-        self.fieldsName = None # keys = self.imageFlood.fieldsName
+        self.fieldsValues = {
+            'rasters': {
+                'title': self.tr('Visibles rasters in map'),
+                'name': None,
+                'value': None
+            },
+            'user': {
+                'title': self.tr('User of QGIS'),
+                'name': None,
+                'value': None
+            },
+            'datetime': {
+                'title': self.tr('Date time when features will be add'),
+                'name': None,
+                'value': None
+            },
+            'scale': {
+                'title': self.tr('Scale of map'),
+                'name': None,
+                'value': None
+            }
+        }
 
     def __del__(self):
         del self.imageFlood
@@ -509,7 +502,8 @@ class PolygonClickMapTool(QgsMapTool):
                 self.msgBar.pushWarning( self.PLUGINNAME, msg )
                 return
 
-            totalFeats = self.imageFlood.polygonizeFlood( self.layerFlood, self.fieldsName )
+            self._setFieldsValues()
+            totalFeats = self.imageFlood.polygonizeFlood( self.layerFlood, self.fieldsValues )
             if not totalFeats:
                 msg = self.tr('Polygonize - Missing features')
             else:
@@ -531,29 +525,7 @@ class PolygonClickMapTool(QgsMapTool):
             return
 
     def setLayerFlood(self, layer):
-        def existsFieldName(layer, name, type=QVariant.String):
-            for field in layer.fields():
-                if field.type() == type and field.name() == name:
-                    return True
-            return False
-
-        if not self.layerFlood == layer and self.imageFlood.totalFlood():
-            self._savePolygon()
-
-        self.fieldsName = {}
-        name = 'imagens'
-        if existsFieldName( layer, name ):
-            self.fieldsName['rasters'] = name
-        name = 'datahora'
-        if existsFieldName( layer, name ):
-            self.fieldsName['datetime'] = name
-        name = 'usuario'
-        if existsFieldName( layer, name ):
-            self.fieldsName['user'] = name
-        name = 'escala'
-        if existsFieldName( layer, name ):
-            self.fieldsName['scale'] = name
-
+        self._setFieldsValuesName( layer )
         msg = self.tr('Current layer is')
         msg = f"{msg} \"{layer.name()}\""
         self.msgBar.popWidget()
@@ -574,13 +546,40 @@ class PolygonClickMapTool(QgsMapTool):
         if not self == self.mapCanvas.mapTool():
             self.toolBack = self.mapCanvas.mapTool()
 
+    def _setFieldsValuesName(self, layer):
+        fiedsNames = {
+            'rasters': 'imagens',
+            'user': 'usuario',
+            'datetime': 'datahora',
+            'scale': 'escala'
+        }
+        names = [ f.name() for f in layer.fields() if f.type() == QVariant.String ]
+        for k in fiedsNames:
+            if fiedsNames[ k ] in names:
+                self.fieldsValues[ k ]['name'] = fiedsNames[ k ]
+
+    def _setFieldsValues(self):
+        k = 'rasters'
+        if self.fieldsValues[ k ]['name']:
+            self.fieldsValues[ k ]['value'] = self.imageFlood.rasterCanvasNames()
+        k = 'user'
+        if self.fieldsValues[ k ]['name']:
+            self.fieldsValues[ k ]['value'] = QgsApplication.userFullName()
+        k = 'datetime'
+        if self.fieldsValues[ k ]['name']:
+            self.fieldsValues[ k ]['value'] = QDateTime.currentDateTime().toString( Qt.ISODate )
+        k = 'scale'
+        if self.fieldsValues[ k ]['name']:
+            self.fieldsValues[ k ]['value'] = str( int( self.mapCanvas.scale() ) )
+
     def _savePolygon(self):
         totalImages = self.imageFlood.totalFlood()
         msg = self.tr('Add features from images to')
         msg = f"{msg} \"{self.layerFlood.name()}\""
         ret = QMessageBox.question( None, self.PLUGINNAME, msg, QMessageBox.Yes | QMessageBox.No )
         if ret == QMessageBox.Yes:
-            totalFeats = self.imageFlood.polygonizeFlood( self.layerFlood, self.fieldsName )
+            self._setFieldsValues()
+            totalFeats = self.imageFlood.polygonizeFlood( self.layerFlood, self.fieldsValues )
             if not totalFeats:
                 msg = self.tr('Polygonize - Missing features')
             else:
