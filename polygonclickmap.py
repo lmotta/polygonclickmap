@@ -147,21 +147,13 @@ class ImageFlood(QObject):
 
     def movingFloodCanvas(self, pointCanvas, threshFlood):
         def finished(exception, dataResult):
-            layers = [ self.lyrSeed ]
-            if not dataResult['isCanceled'] and dataResult['totalPixels']:
-                layers.append( dataResult['rasterFlood'] )
-            self.mapItem.setLayers( layers )
-            self.mapItem.updateCanvas()
-            self.taskCreateFlood = None
+            self._finishedFloodCanvas( dataResult )
             self.finishMovingFloodCanvas.emit( not dataResult['isCanceled'] )
 
         def run(task):
             self.taskCreateFlood = task
             arryFlood, totalPixels = self._createFlood( pointCanvas, threshFlood )
-            if arryFlood is None:
-                return { 'isCanceled': True }
-
-            dataResult = { 'isCanceled': False , 'totalPixels': totalPixels }
+            dataResult = { 'isCanceled': arryFlood is None,  'totalPixels': totalPixels }
             if totalPixels:
                 self.arryFloodMove = arryFlood
                 dataResult['rasterFlood'] = self._rasterFlood( arryFlood )
@@ -176,12 +168,7 @@ class ImageFlood(QObject):
 
     def addFloodCanvas(self, pointCanvas):
         def finished(exception, dataResult):
-            layers = [ self.lyrSeed ]
-            if not dataResult['isCanceled'] and 'rasterFlood' in dataResult :
-                layers.append( dataResult['rasterFlood'] )
-            self.mapItem.setLayers( layers )
-            self.mapItem.updateCanvas()
-            self.taskCreateFlood = None
+            self._finishedFloodCanvas( dataResult )
             self.finishAddedFloodCanvas.emit( not dataResult['isCanceled'], dataResult['totalPixels'] )
 
         def run(task):
@@ -202,19 +189,20 @@ class ImageFlood(QObject):
 
     def addFloodMoveCanvas(self):
         def finished(exception, dataResult):
-            layers = [ self.lyrSeed, dataResult['rasterFlood'] ]
-            self.mapItem.setLayers( layers )
-            self.mapItem.updateCanvas()
-            self.taskCreateFlood = None
+            self._finishedFloodCanvas( dataResult )
             self.finishAddedMoveFloodCanvas.emit( True, dataResult['totalPixels'] )
 
         def run(task):
             self.taskCreateFlood = task
-            self.arrys_flood.append( self.arryFloodMove )
-            return {
-                'totalPixels': ( self.arryFloodMove == self.calcFlood.flood_value_color ).sum().item(),
-                'rasterFlood': self._rasterFlood( self._reduceArrysFlood() )
+            dataResult = {
+                'totalPixels': 0
             }
+            if self.arryFloodMove:
+                self.arrys_flood.append( self.arryFloodMove )
+                dataResult['totalPixels'] = ( self.arryFloodMove == self.calcFlood.flood_value_color ).sum().item()
+            if len( self.arrys_flood ):
+                dataResult['rasterFlood'] = self._rasterFlood( self._reduceArrysFlood() )
+            return dataResult
 
         task = QgsTask.fromFunction('PolygonClickImage add move flood', run, on_finished=finished )
         self.taskManager.addTask( task )
@@ -310,6 +298,14 @@ class ImageFlood(QObject):
         rl.loadNamedStyle( self.styleRaster )
         self.existsLinkRasterFlood = True
         return rl
+
+    def _finishedFloodCanvas(self, dataResult ):
+        layers = [ self.lyrSeed ]
+        if 'rasterFlood' in dataResult :
+            layers.append( dataResult['rasterFlood'] )
+        self.mapItem.setLayers( layers )
+        self.mapItem.updateCanvas()
+        self.taskCreateFlood = None
 
     def _createFlood(self, pointCanvas, threshFlood=None):
         # Populate Arrays flood
@@ -667,8 +663,8 @@ class PolygonClickMapTool(QgsMapTool):
 
     @pyqtSlot(bool)
     def _finishMovingFloodCanvas(self, isOk):
-        if not self.hasPressPoint and isOk: # canvasReleaseEvent before
-            self.imageFlood.addFloodMoveCanvas()
+        if not self.hasPressPoint: # canvasReleaseEvent before
+            self.imageFlood.addFloodMoveCanvas() # Can be None floodMove
         self.btnCancel.hide()
         self.dtMoveFloodIni = QDateTime.currentDateTime()
         if not isOk:
