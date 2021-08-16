@@ -196,7 +196,7 @@ class ImageFlood(QObject):
             dataResult = {
                 'totalPixels': 0
             }
-            if self.arryFloodMove:
+            if not self.arryFloodMove is None:
                 self.arrys_flood.append( self.arryFloodMove )
                 dataResult['totalPixels'] = ( self.arryFloodMove == self.calcFlood.flood_value_color ).sum().item()
             if len( self.arrys_flood ):
