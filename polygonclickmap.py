@@ -206,8 +206,8 @@ class ImageFlood(QObject):
         task = QgsTask.fromFunction('PolygonClickImage add move flood', run, on_finished=finished )
         self.taskManager.addTask( task )
         # Debug
-        # r = run( task )
-        # finished( None, r )
+        r = run( task )
+        finished( None, r )
 
     def deleteFlood(self):
         if not len( self.arrys_flood ):

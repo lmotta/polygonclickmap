@@ -32,7 +32,6 @@ from qgis.PyQt.QtWidgets import QAction
 
 from qgis.core import QgsProject
 
-from .polygonclickmap import PolygonClickMapTool
 from .translate import Translate
 
 from .utils import connectSignalSlot
@@ -51,6 +50,15 @@ class PolygonClickMapPlugin(QObject):
         self.tr = self.translate.tr
 
         self.action = None
+
+        self.existsSciPy = True
+        try:
+            from scipy import ndimage
+        except:
+            self.existsSciPy = False
+            return
+
+        from .polygonclickmap import PolygonClickMapTool
         self.tool = PolygonClickMapTool( iface )
 
         self.editingSignalSlot = lambda layer: {
@@ -71,7 +79,8 @@ class PolygonClickMapPlugin(QObject):
         # Maptool
         self.action.setCheckable( True )
         self.action.setEnabled( False )
-        self.tool.setAction( self.action )
+        if self.existsSciPy:
+            self.tool.setAction( self.action )
 
         self.iface.addToolBarIcon( self.action )
         self.iface.addPluginToMenu( self.menu, self.action )
@@ -87,6 +96,9 @@ class PolygonClickMapPlugin(QObject):
 
     @pyqtSlot(bool)
     def run(self, checked):
+        if not self.existsSciPy:
+            self.iface.messageBar().pushCritical(self.action.objectName, "Missing 'scipy' libray. Need install scipy(https://www.scipy.org/install.html)" )
+            return
         if checked:
             layer = self.iface.activeLayer()
             self.tool.setLayerFlood( layer )
