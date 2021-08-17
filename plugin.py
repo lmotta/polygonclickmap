@@ -28,13 +28,23 @@ __revision__ = '$Format:%H$'
 
 from qgis.PyQt.QtCore import QObject, pyqtSlot, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import QAction
+from qgis.PyQt.QtWidgets import (
+    QAction, QToolButton, QMenu,
+    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QDialogButtonBox
+)
 
-from qgis.core import QgsProject
+from qgis.core import QgsProject, QgsApplication, QgsFieldProxyModel
+from qgis.gui import QgsFieldComboBox
 
 from .translate import Translate
 
 from .utils import connectSignalSlot
+
+EXISTSSCIPY = True
+try:
+    from .polygonclickmap import PolygonClickMapTool # from scipy import ndimage
+except:
+    EXISTSSCIPY = False
 
 import os
 
@@ -42,6 +52,7 @@ class PolygonClickMapPlugin(QObject):
 
     def __init__(self, iface):
         super().__init__()
+        self.pluginName = 'Polygon Click Map'
         self.iface = iface
         self.mapCanvas = iface.mapCanvas() 
         self.project = QgsProject.instance()
@@ -49,69 +60,140 @@ class PolygonClickMapPlugin(QObject):
         self.translate = Translate( type(self).__name__ )
         self.tr = self.translate.tr
 
-        self.action = None
-
-        self.existsSciPy = True
-        try:
-            from scipy import ndimage
-        except:
-            self.existsSciPy = False
-            return
-
-        from .polygonclickmap import PolygonClickMapTool
-        self.tool = PolygonClickMapTool( iface )
+        self.actions = { 'tool': None, 'layer_field': None }
+        self.toolButton = QToolButton()
+        self.toolButton.setMenu( QMenu() )
+        self.toolButton.setPopupMode( QToolButton.MenuButtonPopup )
+        self.toolBtnAction = self.iface.addToolBarWidget( self.toolButton )
+        self.titleTool = self.tr('Create polygon by clicking in map')
 
         self.editingSignalSlot = lambda layer: {
             layer.editingStarted: self._editingStarted,
             layer.editingStopped: self._editingStopped
         }.items()
 
+        if EXISTSSCIPY:
+            self.tool = PolygonClickMapTool( iface, self.pluginName )
+
     def initGui(self):
-        title = self.tr('Create polygon by clicking in map')
+        # Action Tool
         icon = QIcon( os.path.join( os.path.dirname(__file__), 'polygonclickmap.svg' ) )
-        self.action = QAction( icon, title, self.iface.mainWindow() )
-        self.action.setObjectName('PolygonClickMap')
-        self.action.setWhatsThis( title )
-        self.action.setStatusTip( title )
-        self.action.triggered.connect( self.run )
-        self.menu = f"&{title}"
-
-        # Maptool
-        self.action.setCheckable( True )
-        self.action.setEnabled( False )
-        if self.existsSciPy:
-            self.tool.setAction( self.action )
-
-        self.iface.addToolBarIcon( self.action )
-        self.iface.addPluginToMenu( self.menu, self.action )
+        self.actions['tool'] = QAction( icon, self.titleTool, self.iface.mainWindow() )
+        self.actions['tool'].setToolTip( self.titleTool )
+        self.actions['tool'].triggered.connect( self.runTool )
+        self.actions['tool'].setCheckable( True )
+        if EXISTSSCIPY:
+            self.tool.setAction( self.actions['tool'] )
+        self.iface.addPluginToMenu( f"&{self.titleTool}" , self.actions['tool'] )
+        # Action setField
+        title = self.tr('Set metadata field')
+        icon = QgsApplication.getThemeIcon('/propertyicons/editmetadata.svg')
+        self.actions['layer_field'] = QAction( icon, title, self.iface.mainWindow() )
+        self.actions['layer_field'].setToolTip( title )
+        self.actions['layer_field'].triggered.connect( self.setField )
+        self.iface.addPluginToMenu( f"&{self.titleTool}" , self.actions['layer_field'] )
+        #
+        self._enabled(False)
+        m = self.toolButton.menu()
+        for k in self.actions:
+            m.addAction( self.actions[ k ] )
+        self.toolButton.setDefaultAction( self.actions['tool'] )
 
         self.iface.currentLayerChanged.connect( self._currentLayerChanged )
 
     def unload(self):
+        for action in [ self.actions['tool'], self.actions['layer_field'] ]:
+            self.iface.removePluginMenu( f"&{self.titleTool}", action )
+            self.iface.removeToolBarIcon( action )
+            self.iface.unregisterMainWindowAction( action )
+        self.iface.removeToolBarIcon( self.toolBtnAction )
         self.mapCanvas.unsetMapTool( self.tool )
-        self.iface.removeToolBarIcon( self.action )
-        self.iface.removePluginMenu( self.menu, self.action )
         self.iface.currentLayerChanged.disconnect( self._currentLayerChanged )
-        del self.action
+
+    def _enabled(self, enable):
+        for k in self.actions:
+            self.actions[ k ].setEnabled( enable )
 
     @pyqtSlot(bool)
-    def run(self, checked):
-        if not self.existsSciPy:
-            self.iface.messageBar().pushCritical(self.action.objectName, "Missing 'scipy' libray. Need install scipy(https://www.scipy.org/install.html)" )
+    def runTool(self, checked):
+        if not EXISTSSCIPY:
+            msg = self.tr("Missing 'scipy' libray. Need install scipy(https://www.scipy.org/install.html)")
+            self.iface.messageBar().pushCritical( self.pluginName, msg )
             return
+
         if checked:
             layer = self.iface.activeLayer()
             self.tool.setLayerFlood( layer )
             self.mapCanvas.setMapTool( self.tool )
             return
 
-        self.action.setChecked( True )
-        
+        self.actions['tool'].setChecked( True )
+
+    @pyqtSlot(bool)
+    def setField(self, checked):
+        def layoutFields(layer):
+            def fieldsComboString():
+                w = QgsFieldComboBox()
+                w.setSizeAdjustPolicy( w.AdjustToContents)
+                w.setFilters( QgsFieldProxyModel.String )
+                w.setLayer(layer)
+                w.setCurrentIndex(0)
+                fieldMetadata = layer.customProperty( PolygonClickMapTool.KEY_METADATA, None )
+                if fieldMetadata:
+                    fields = w.fields()
+                    idx = fields.indexOf( fieldMetadata )
+                    w.setCurrentIndex( idx )
+                return w
+
+            lyt = QHBoxLayout()
+            msg = self.tr( 'Select metadata field for populate' )
+            lyt.addWidget( QLabel( msg ) )
+            cmbFields = fieldsComboString()
+            lyt.addWidget( cmbFields )
+            return cmbFields, lyt
+
+        def buttonOkCancel():
+            def changeDefault(standardButton, default):
+                btn = btnBox.button( standardButton )
+                btn.setAutoDefault( default )
+                btn.setDefault( default )
+
+            btnBox = QDialogButtonBox( QDialogButtonBox.Ok | QDialogButtonBox.Cancel )
+            changeDefault( QDialogButtonBox.Ok, False )
+            changeDefault( QDialogButtonBox.Cancel, True )
+            btnBox.accepted.connect( d.accept )
+            btnBox.rejected.connect( d.reject )
+            return btnBox
+
+        if not EXISTSSCIPY:
+            msg = self.tr("Missing 'scipy' libray. Need install scipy(https://www.scipy.org/install.html)")
+            self.iface.messageBar().pushCritical( self.pluginName, msg )
+            return
+
+        d = QDialog(self.iface.mainWindow() )
+        d.setWindowTitle( self.pluginName )
+        lytMain = QVBoxLayout()
+        msg = self.tr( 'Layer: {}' )
+        layer = self.iface.activeLayer()
+        msg = msg.format( layer.name() )
+        lbl = QLabel( msg )
+        font = lbl.font()
+        font.setBold( True )
+        lbl.setFont( font )
+        lytMain.addWidget( lbl )
+        cmbFields, lyt = layoutFields( layer )
+        lytMain.addLayout( lyt )
+        lytMain.addWidget( buttonOkCancel() )
+        d.setLayout( lytMain )
+        d.exec_()
+        if d.result() == QDialog.Accepted:
+            layer.setCustomProperty( PolygonClickMapTool.KEY_METADATA, cmbFields.currentField() )
+
     @pyqtSlot('QgsMapLayer*')
     def _currentLayerChanged(self, layer):
         if self.tool.isPolygon( layer ):
             isEditabled = layer.isEditable()
-            self.action.setEnabled( isEditabled )
+            self._enabled( isEditabled )
             if isEditabled:
                 if self.tool.isActive() and not layer == self.tool.layerFlood:
                     self.tool.setLayerFlood( layer )
@@ -120,16 +202,16 @@ class PolygonClickMapPlugin(QObject):
             for signal, slot in self.editingSignalSlot( layer ):
                 connectSignalSlot( signal, slot )
 
-        self.action.setEnabled(False)
+        self._enabled(False)
 
     @pyqtSlot()
     def _editingStarted(self):
-        self.action.setEnabled( True )
+        self._enabled(True)
         if self.tool.isActive():
             self.tool.setLayerFlood( self.iface.activeLayer() )
             return
 
     @pyqtSlot()
     def _editingStopped(self):
-        self.action.setEnabled( False )
+        self._enabled(False)
 

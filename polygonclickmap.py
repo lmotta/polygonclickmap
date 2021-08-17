@@ -336,10 +336,10 @@ class ImageFlood(QObject):
             self.taskCreateFlood.cancel()
 
 class PolygonClickMapTool(QgsMapTool):
-    PLUGINNAME = 'Polygon Click Map'
     KEY_METADATA = 'PolygonClickMapTool_metadata'
-    def __init__(self, iface):
+    def __init__(self, iface, pluginName):
         self.mapCanvas = iface.mapCanvas()
+        self.pluginName = pluginName
         super().__init__( self.mapCanvas )
 
         self.msgBar = iface.messageBar()
@@ -426,7 +426,7 @@ class PolygonClickMapTool(QgsMapTool):
     def canvasReleaseEvent(self, e):
         if not len( self.imageFlood.rastersCanvas):
             msg = self.tr('Missing raster layer visible in Map')
-            self.msgBar.pushWarning( self.PLUGINNAME, msg )
+            self.msgBar.pushWarning( self.pluginName, msg )
             return
 
         self.hasPressPoint = False
@@ -467,11 +467,11 @@ class PolygonClickMapTool(QgsMapTool):
         if e.key() == Qt.Key_P:
             if self.layerFlood is None:
                 msg = self.tr('Missing polygon layer to receive')
-                self.msgBar.pushWarning( self.PLUGINNAME, msg )
+                self.msgBar.pushWarning( self.pluginName, msg )
                 return
             if not self.layerFlood.isEditable():
                 msg = f"Polygon layer \"{self.layerFlood.name()}\"need be Editable"
-                self.msgBar.pushWarning( self.PLUGINNAME, msg )
+                self.msgBar.pushWarning( self.pluginName, msg )
                 return
 
             totalFeats = self.imageFlood.polygonizeFlood( self.layerFlood, self._getMetadata() )
@@ -489,7 +489,7 @@ class PolygonClickMapTool(QgsMapTool):
                 return
 
             msg = f"Clear {total} images?"
-            ret = QMessageBox.question(None, self.PLUGINNAME, msg, QMessageBox.Yes | QMessageBox.No, QMessageBox.No )
+            ret = QMessageBox.question(None, self.pluginName, msg, QMessageBox.Yes | QMessageBox.No, QMessageBox.No )
             if ret == QMessageBox.Yes:
                 self.imageFlood.clearFloodCanvas()
                 self._setTextMessage(f"Delete {total} images")
@@ -500,7 +500,7 @@ class PolygonClickMapTool(QgsMapTool):
         msg = self.tr('Current layer is')
         msg = f"{msg} \"{layer.name()}\""
         self.msgBar.popWidget()
-        self.msgBar.pushInfo( self.PLUGINNAME, msg )
+        self.msgBar.pushInfo( self.pluginName, msg )
 
         if not self.layerFlood is None:
             self.layerFlood.nameChanged.disconnect( self._nameChangedLayerFlood )
@@ -533,7 +533,7 @@ class PolygonClickMapTool(QgsMapTool):
         totalImages = self.imageFlood.totalFlood()
         msg = self.tr('Add features from images to')
         msg = f"{msg} \"{self.layerFlood.name()}\""
-        ret = QMessageBox.question( None, self.PLUGINNAME, msg, QMessageBox.Yes | QMessageBox.No )
+        ret = QMessageBox.question( None, self.pluginName, msg, QMessageBox.Yes | QMessageBox.No )
         if ret == QMessageBox.Yes:
             totalFeats = self.imageFlood.polygonizeFlood( self.layerFlood, self._getMetadata() )
             if not totalFeats:
@@ -550,7 +550,7 @@ class PolygonClickMapTool(QgsMapTool):
         self._setTextMessage( msg )
 
     def _setTextMessage(self, message):
-        self.lblMessageFlood.setText(f"{self.PLUGINNAME}({self.layerFlood.name()}): {message}")
+        self.lblMessageFlood.setText(f"{self.pluginName}({self.layerFlood.name()}): {message}")
 
     def _setValueTreshold(self, treshold):
         self.spThreshFlood.setValue( treshold )
@@ -629,7 +629,7 @@ class PolygonClickMapTool(QgsMapTool):
         self.dtMoveFloodIni = QDateTime.currentDateTime()
         if not isOk:
             msg = self.tr('Canceled by user')
-            self.msgBar.pushCritical( self.PLUGINNAME, msg )
+            self.msgBar.pushCritical( self.pluginName, msg )
 
     @pyqtSlot(bool, int)
     def _finishAddedFloodCanvas(self, isOk, totalPixels):
@@ -645,7 +645,7 @@ class PolygonClickMapTool(QgsMapTool):
         self.btnCancel.hide()
         if not isOk:
             msg = self.tr('Canceled by user')
-            self.msgBar.pushCritical( self.PLUGINNAME, msg )
+            self.msgBar.pushCritical( self.pluginName, msg )
 
 
 def saveShp(geoms, srs):
