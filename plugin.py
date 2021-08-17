@@ -26,14 +26,20 @@ __revision__ = '$Format:%H$'
 
 
 
-from qgis.PyQt.QtCore import QObject, pyqtSlot, QCoreApplication
+from qgis.PyQt.QtCore import (
+    QObject, pyqtSlot, QCoreApplication,
+    QVariant
+)
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import (
     QAction, QToolButton, QMenu,
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QDialogButtonBox
 )
 
-from qgis.core import QgsProject, QgsApplication, QgsFieldProxyModel
+from qgis.core import (
+    QgsProject, QgsApplication,
+    QgsFieldProxyModel, QgsField
+)
 from qgis.gui import QgsFieldComboBox
 
 from .translate import Translate
@@ -85,12 +91,12 @@ class PolygonClickMapPlugin(QObject):
         if EXISTSSCIPY:
             self.tool.setAction( self.actions['tool'] )
         self.iface.addPluginToMenu( f"&{self.titleTool}" , self.actions['tool'] )
-        # Action setField
-        title = self.tr('Set metadata field')
+        # Action setFields
+        title = self.tr('Set fields: metadata(exists) and area_ha(virtual)')
         icon = QgsApplication.getThemeIcon('/propertyicons/editmetadata.svg')
         self.actions['layer_field'] = QAction( icon, title, self.iface.mainWindow() )
         self.actions['layer_field'].setToolTip( title )
-        self.actions['layer_field'].triggered.connect( self.setField )
+        self.actions['layer_field'].triggered.connect( self.setFields )
         self.iface.addPluginToMenu( f"&{self.titleTool}" , self.actions['layer_field'] )
         #
         self._enabled(False)
@@ -130,64 +136,81 @@ class PolygonClickMapPlugin(QObject):
         self.actions['tool'].setChecked( True )
 
     @pyqtSlot(bool)
-    def setField(self, checked):
-        def layoutFields(layer):
-            def fieldsComboString():
-                w = QgsFieldComboBox()
-                w.setSizeAdjustPolicy( w.AdjustToContents)
-                w.setFilters( QgsFieldProxyModel.String )
-                w.setLayer(layer)
-                w.setCurrentIndex(0)
-                fieldMetadata = layer.customProperty( PolygonClickMapTool.KEY_METADATA, None )
-                if fieldMetadata:
-                    fields = w.fields()
-                    idx = fields.indexOf( fieldMetadata )
-                    w.setCurrentIndex( idx )
-                return w
+    def setFields(self, checked):
+        def dialogFieldMetadata(layer, fieldArea, existFieldArea):
+            def layoutFields():
+                def fieldsComboString():
+                    w = QgsFieldComboBox()
+                    w.setSizeAdjustPolicy( w.AdjustToContents)
+                    w.setFilters( QgsFieldProxyModel.String )
+                    w.setLayer(layer)
+                    w.setCurrentIndex(0)
+                    fieldMetadata = layer.customProperty( PolygonClickMapTool.KEY_METADATA, None )
+                    if fieldMetadata:
+                        fields = w.fields()
+                        idx = fields.indexOf( fieldMetadata )
+                        w.setCurrentIndex( idx )
+                    return w
 
-            lyt = QHBoxLayout()
-            msg = self.tr( 'Select metadata field for populate' )
-            lyt.addWidget( QLabel( msg ) )
-            cmbFields = fieldsComboString()
-            lyt.addWidget( cmbFields )
-            return cmbFields, lyt
+                lyt = QHBoxLayout()
+                msg = self.tr( 'Metadata field:' )
+                lyt.addWidget( QLabel( msg ) )
+                cmbFields = fieldsComboString()
+                lyt.addWidget( cmbFields )
+                return cmbFields, lyt
 
-        def buttonOkCancel():
-            def changeDefault(standardButton, default):
-                btn = btnBox.button( standardButton )
-                btn.setAutoDefault( default )
-                btn.setDefault( default )
+            def buttonOkCancel():
+                def changeDefault(standardButton, default):
+                    btn = btnBox.button( standardButton )
+                    btn.setAutoDefault( default )
+                    btn.setDefault( default )
 
-            btnBox = QDialogButtonBox( QDialogButtonBox.Ok | QDialogButtonBox.Cancel )
-            changeDefault( QDialogButtonBox.Ok, False )
-            changeDefault( QDialogButtonBox.Cancel, True )
-            btnBox.accepted.connect( d.accept )
-            btnBox.rejected.connect( d.reject )
-            return btnBox
+                btnBox = QDialogButtonBox( QDialogButtonBox.Ok | QDialogButtonBox.Cancel )
+                changeDefault( QDialogButtonBox.Ok, False )
+                changeDefault( QDialogButtonBox.Cancel, True )
+                btnBox.accepted.connect( d.accept )
+                btnBox.rejected.connect( d.reject )
+                return btnBox
+
+            d = QDialog(self.iface.mainWindow() )
+            d.setWindowTitle( self.pluginName )
+            lytMain = QVBoxLayout()
+            msg = self.tr( 'Layer: {}' )
+            msg = msg.format( layer.name() )
+            lbl = QLabel( msg )
+            font = lbl.font()
+            font.setBold( True )
+            lbl.setFont( font )
+            lytMain.addWidget( lbl )
+            cmbFields, lyt = layoutFields()
+            lytMain.addLayout( lyt )
+            msg = self.tr("Virtual field '{}' exists") if existFieldArea else self.tr("Virtual field '{}' will be create")
+            msg = msg.format( fieldArea )
+            lytMain.addWidget( QLabel( msg ) )
+            lytMain.addWidget( buttonOkCancel() )
+            d.setLayout( lytMain )
+            d.exec_()
+            if d.result() == QDialog.Accepted:
+                layer.setCustomProperty( PolygonClickMapTool.KEY_METADATA, cmbFields.currentField() )
+                return True
+            return False
+
+        def fieldAreaHa(layer):
+            field = QgsField('area_ha_pcm', QVariant.Double)
+            exp = "area(transform($geometry,layer_property(@layer_id, 'crs'),'EPSG:5880'))/10000"
+            layer.addExpressionField( exp, field )
 
         if not EXISTSSCIPY:
             msg = self.tr("Missing 'scipy' libray. Need install scipy(https://www.scipy.org/install.html)")
             self.iface.messageBar().pushCritical( self.pluginName, msg )
             return
 
-        d = QDialog(self.iface.mainWindow() )
-        d.setWindowTitle( self.pluginName )
-        lytMain = QVBoxLayout()
-        msg = self.tr( 'Layer: {}' )
         layer = self.iface.activeLayer()
-        msg = msg.format( layer.name() )
-        lbl = QLabel( msg )
-        font = lbl.font()
-        font.setBold( True )
-        lbl.setFont( font )
-        lytMain.addWidget( lbl )
-        cmbFields, lyt = layoutFields( layer )
-        lytMain.addLayout( lyt )
-        lytMain.addWidget( buttonOkCancel() )
-        d.setLayout( lytMain )
-        d.exec_()
-        if d.result() == QDialog.Accepted:
-            layer.setCustomProperty( PolygonClickMapTool.KEY_METADATA, cmbFields.currentField() )
+        fieldArea = 'pcm_area_ha'
+        existFieldArea = fieldArea in [ f.name() for f in layer.fields() ]
+        if dialogFieldMetadata( layer, fieldArea, existFieldArea ):
+            if not existFieldArea:
+                fieldAreaHa( layer ) #  map_get( from_json("pcm_meta" ), 'rasters')[0]
 
     @pyqtSlot('QgsMapLayer*')
     def _currentLayerChanged(self, layer):
