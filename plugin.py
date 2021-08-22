@@ -33,7 +33,10 @@ from qgis.PyQt.QtCore import (
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import (
     QAction, QToolButton, QMenu,
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QDialogButtonBox
+    QDialog, QVBoxLayout, QHBoxLayout,
+    QGroupBox,
+    QLabel, QDialogButtonBox,
+    QSpacerItem, QSizePolicy
 )
 
 from qgis.core import (
@@ -92,11 +95,11 @@ class PolygonClickMapPlugin(QObject):
             self.tool.setAction( self.actions['tool'] )
         self.iface.addPluginToMenu( f"&{self.titleTool}" , self.actions['tool'] )
         # Action setFields
-        title = self.tr('Set fields: metadata(exists) and area_ha(virtual)')
-        icon = QgsApplication.getThemeIcon('/propertyicons/editmetadata.svg')
+        title = self.tr('Setup')
+        icon = QgsApplication.getThemeIcon('/propertyicons/general.svg')
         self.actions['layer_field'] = QAction( icon, title, self.iface.mainWindow() )
         self.actions['layer_field'].setToolTip( title )
-        self.actions['layer_field'].triggered.connect( self.setFields )
+        self.actions['layer_field'].triggered.connect( self.runSetup )
         self.iface.addPluginToMenu( f"&{self.titleTool}" , self.actions['layer_field'] )
         #
         self._enabled(False)
@@ -136,8 +139,17 @@ class PolygonClickMapPlugin(QObject):
         self.actions['tool'].setChecked( True )
 
     @pyqtSlot(bool)
-    def setFields(self, checked):
-        def dialogFieldMetadata(layer, fieldArea, existFieldArea):
+    def runSetup(self, checked):
+        def dialogSetup(layer, fieldArea, existFieldArea):
+            def widgetLayer():
+                msg = self.tr( 'Layer: {}' )
+                msg = msg.format( layer.name() )
+                lbl = QLabel( msg )
+                font = lbl.font()
+                font.setBold( True )
+                lbl.setFont( font )
+                return lbl
+
             def layoutFields():
                 def fieldsComboString():
                     w = QgsFieldComboBox()
@@ -152,12 +164,20 @@ class PolygonClickMapPlugin(QObject):
                         w.setCurrentIndex( idx )
                     return w
 
-                lyt = QHBoxLayout()
-                msg = self.tr( 'Metadata field:' )
-                lyt.addWidget( QLabel( msg ) )
+                lytFields = QVBoxLayout()
+                # Metadata
+                lytMetadata = QHBoxLayout()
+                msg = self.tr( 'Metadata:' )
+                lytMetadata.addWidget( QLabel( msg ) )
                 cmbFields = fieldsComboString()
-                lyt.addWidget( cmbFields )
-                return cmbFields, lyt
+                lytMetadata.addWidget( cmbFields )
+                lytFields.addLayout( lytMetadata )
+                # Area Ha
+                msg = self.tr("Virtual area(ha) '{}' exists") if existFieldArea else self.tr("Virtual area(ha) '{}' will be create")
+                msg = msg.format( fieldArea )
+                lytFields.addWidget( QLabel( msg ) )
+
+                return cmbFields, lytFields
 
             def buttonOkCancel():
                 def changeDefault(standardButton, default):
@@ -172,33 +192,28 @@ class PolygonClickMapPlugin(QObject):
                 btnBox.rejected.connect( d.reject )
                 return btnBox
 
+            def fieldAreaHa(layer, fieldArea):
+                field = QgsField(fieldArea, QVariant.Double)
+                exp = "area(transform($geometry,layer_property(@layer_id, 'crs'),'EPSG:5880'))/10000"
+                layer.addExpressionField( exp, field )
+
             d = QDialog(self.iface.mainWindow() )
             d.setWindowTitle( self.pluginName )
             lytMain = QVBoxLayout()
-            msg = self.tr( 'Layer: {}' )
-            msg = msg.format( layer.name() )
-            lbl = QLabel( msg )
-            font = lbl.font()
-            font.setBold( True )
-            lbl.setFont( font )
-            lytMain.addWidget( lbl )
-            cmbFields, lyt = layoutFields()
-            lytMain.addLayout( lyt )
-            msg = self.tr("Virtual field '{}' exists") if existFieldArea else self.tr("Virtual field '{}' will be create")
-            msg = msg.format( fieldArea )
-            lytMain.addWidget( QLabel( msg ) )
+            lytMain.addWidget( widgetLayer() )
+            cmbFieldMetadata, lyt = layoutFields()
+            gpbFields = QGroupBox( self.tr('Fields') )
+            gpbFields.setLayout( lyt )
+            lytMain.addWidget( gpbFields )
             lytMain.addWidget( buttonOkCancel() )
+            lytMain.addItem( QSpacerItem( 10, 10, QSizePolicy.Minimum, QSizePolicy.Expanding ) )
             d.setLayout( lytMain )
             d.exec_()
             if d.result() == QDialog.Accepted:
-                layer.setCustomProperty( PolygonClickMapTool.KEY_METADATA, cmbFields.currentField() )
-                return True
-            return False
-
-        def fieldAreaHa(layer):
-            field = QgsField('area_ha_pcm', QVariant.Double)
-            exp = "area(transform($geometry,layer_property(@layer_id, 'crs'),'EPSG:5880'))/10000"
-            layer.addExpressionField( exp, field )
+                if cmbFieldMetadata.currentField():
+                    layer.setCustomProperty( PolygonClickMapTool.KEY_METADATA, cmbFieldMetadata.currentField() )
+                if not existFieldArea:
+                    fieldAreaHa( layer, fieldArea ) #  map_get( from_json("pcm_meta" ), 'rasters')[0]
 
         if not EXISTSSCIPY:
             msg = self.tr("Missing 'scipy' libray. Need install scipy(https://www.scipy.org/install.html)")
@@ -208,9 +223,7 @@ class PolygonClickMapPlugin(QObject):
         layer = self.iface.activeLayer()
         fieldArea = 'pcm_area_ha'
         existFieldArea = fieldArea in [ f.name() for f in layer.fields() ]
-        if dialogFieldMetadata( layer, fieldArea, existFieldArea ):
-            if not existFieldArea:
-                fieldAreaHa( layer ) #  map_get( from_json("pcm_meta" ), 'rasters')[0]
+        dialogSetup( layer, fieldArea, existFieldArea )
 
     @pyqtSlot('QgsMapLayer*')
     def _currentLayerChanged(self, layer):
