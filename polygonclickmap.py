@@ -497,7 +497,7 @@ class PolygonClickMapTool(QgsMapTool):
 
     def setLayerFlood(self, layer):
         self.fieldMetadata = layer.customProperty( self.KEY_METADATA, None )
-        if not self.fieldMetadata is None and not self.fieldMetadata in [ f.name() for f in layer.fields() ]:
+        if not self.fieldMetadata is None and not self.fieldMetadata in layer.fields().names():
             self.fieldMetadata = None
 
         msg = self.tr('Current layer is')

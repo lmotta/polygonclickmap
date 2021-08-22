@@ -35,7 +35,8 @@ from qgis.PyQt.QtWidgets import (
     QAction, QToolButton, QMenu,
     QDialog, QVBoxLayout, QHBoxLayout,
     QGroupBox,
-    QLabel, QDialogButtonBox,
+    QLabel, QLineEdit,
+    QDialogButtonBox,
     QSpacerItem, QSizePolicy
 )
 
@@ -81,6 +82,7 @@ class PolygonClickMapPlugin(QObject):
             layer.editingStopped: self._editingStopped
         }.items()
 
+        self.messageExistsScipy = False
         if EXISTSSCIPY:
             self.tool = PolygonClickMapTool( iface, self.pluginName )
 
@@ -125,11 +127,6 @@ class PolygonClickMapPlugin(QObject):
 
     @pyqtSlot(bool)
     def runTool(self, checked):
-        if not EXISTSSCIPY:
-            msg = self.tr("Missing 'scipy' libray. Need install scipy(https://www.scipy.org/install.html)")
-            self.iface.messageBar().pushCritical( self.pluginName, msg )
-            return
-
         if checked:
             layer = self.iface.activeLayer()
             self.tool.setLayerFlood( layer )
@@ -140,7 +137,34 @@ class PolygonClickMapPlugin(QObject):
 
     @pyqtSlot(bool)
     def runSetup(self, checked):
-        def dialogSetup(layer, fieldArea, existFieldArea):
+        def statusFieldArea(layer):
+            expArea = "area(transform($geometry,layer_property(@layer_id,'crs'),'{}'))/10000"
+            ini_expArea = expArea.split('{')[0]
+            end_expArea = expArea.split('}')[1]
+            fields = layer.fields()
+            idxExpr = -1
+            for idx in range( fields.count() ):
+                if fields.OriginExpression == fields.fieldOrigin( idx ) and fields.at( idx ).type() == QVariant.Double:
+                    idxOrigin = fields.fieldOriginIndex( idx )
+                    exp = layer.expressionField( idxOrigin ).replace(' ', '')
+                    if exp.find( ini_expArea ) != -1 and exp.find( end_expArea ) != -1:
+                        idxExpr = idx
+                        break
+            if idxExpr == -1:
+                return {
+                    'exists': False,
+                    'expr': expArea
+                }
+
+            return {
+                'exists': True,
+                'expr': expArea,
+                'name': fields.at( idxExpr ).name(),
+                'index': idxExpr,          
+                'crs': exp[ len(ini_expArea):-1*len(end_expArea) ]
+            }
+
+        def dialogSetup(layer, statusArea):
             def widgetLayer():
                 msg = self.tr( 'Layer: {}' )
                 msg = msg.format( layer.name() )
@@ -173,11 +197,25 @@ class PolygonClickMapPlugin(QObject):
                 lytMetadata.addWidget( cmbFields )
                 lytFields.addLayout( lytMetadata )
                 # Area Ha
-                msg = self.tr("Virtual area(ha) '{}' exists") if existFieldArea else self.tr("Virtual area(ha) '{}' will be create")
-                msg = msg.format( fieldArea )
-                lytFields.addWidget( QLabel( msg ) )
-
-                return cmbFields, lytFields
+                lytArea = QHBoxLayout()
+                msg = self.tr('Virtual area(ha):')
+                lytArea.addWidget( QLabel( msg ) )
+                #
+                result = {
+                    'cmbFields': cmbFields,
+                    'layout': lytFields
+                }
+                if statusArea['exists']:
+                    lytArea.addWidget( QLabel( statusArea['name'] ) )
+                    result['wgtCrs'] = QLabel( statusArea['crs'] )
+                    lytArea.addWidget( result['wgtCrs'] )
+                else:
+                    result['wgtName'] = QLineEdit('area_ha')
+                    lytArea.addWidget( result['wgtName'] )
+                    result['wgtCrs'] = QLabel('EPSG:5880')
+                    lytArea.addWidget( result['wgtCrs'] )
+                lytFields.addLayout( lytArea )
+                return result
 
             def buttonOkCancel():
                 def changeDefault(standardButton, default):
@@ -192,41 +230,49 @@ class PolygonClickMapPlugin(QObject):
                 btnBox.rejected.connect( d.reject )
                 return btnBox
 
-            def fieldAreaHa(layer, fieldArea):
-                field = QgsField(fieldArea, QVariant.Double)
-                exp = "area(transform($geometry,layer_property(@layer_id, 'crs'),'EPSG:5880'))/10000"
-                layer.addExpressionField( exp, field )
+            def addArea(nameField, expr):
+                field = QgsField( nameField, QVariant.Double )
+                layer.addExpressionField( expr, field )
+
+            def updateArea(index, expr):
+                layer.updateExpressionField( index, expr )
 
             d = QDialog(self.iface.mainWindow() )
             d.setWindowTitle( self.pluginName )
             lytMain = QVBoxLayout()
             lytMain.addWidget( widgetLayer() )
-            cmbFieldMetadata, lyt = layoutFields()
+            infoLayoutFields = layoutFields()
             gpbFields = QGroupBox( self.tr('Fields') )
-            gpbFields.setLayout( lyt )
+            gpbFields.setLayout( infoLayoutFields['layout'] )
             lytMain.addWidget( gpbFields )
             lytMain.addWidget( buttonOkCancel() )
             lytMain.addItem( QSpacerItem( 10, 10, QSizePolicy.Minimum, QSizePolicy.Expanding ) )
             d.setLayout( lytMain )
             d.exec_()
             if d.result() == QDialog.Accepted:
-                if cmbFieldMetadata.currentField():
-                    layer.setCustomProperty( PolygonClickMapTool.KEY_METADATA, cmbFieldMetadata.currentField() )
-                if not existFieldArea:
-                    fieldAreaHa( layer, fieldArea ) #  map_get( from_json("pcm_meta" ), 'rasters')[0]
-
-        if not EXISTSSCIPY:
-            msg = self.tr("Missing 'scipy' libray. Need install scipy(https://www.scipy.org/install.html)")
-            self.iface.messageBar().pushCritical( self.pluginName, msg )
-            return
+                currentField = infoLayoutFields['cmbFields'].currentField()
+                if currentField:
+                    # Get Values Metadata: map_get( from_json("pcm_meta" ), 'rasters')[0]
+                    layer.setCustomProperty( PolygonClickMapTool.KEY_METADATA, currentField )
+                expr = statusArea['expr'].format( infoLayoutFields['wgtCrs'].text() )
+                if not statusArea['exists']:
+                    name = infoLayoutFields['wgtName'].text()
+                    addArea( name, expr )
+                else:
+                    updateArea( statusArea['index'], expr )
 
         layer = self.iface.activeLayer()
-        fieldArea = 'pcm_area_ha'
-        existFieldArea = fieldArea in [ f.name() for f in layer.fields() ]
-        dialogSetup( layer, fieldArea, existFieldArea )
+        status = statusFieldArea( layer )
+        dialogSetup( layer, status )
 
     @pyqtSlot('QgsMapLayer*')
     def _currentLayerChanged(self, layer):
+        if not EXISTSSCIPY and not self.messageExistsScipy:
+            msg = self.tr("Missing 'scipy' libray. Need install scipy(https://www.scipy.org/install.html)")
+            self.iface.messageBar().pushCritical( self.pluginName, msg )
+            self.messageExistsScipy = True
+            return
+
         if self.tool.isPolygon( layer ):
             isEditabled = layer.isEditable()
             self._enabled( isEditabled )
