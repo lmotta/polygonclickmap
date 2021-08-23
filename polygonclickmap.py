@@ -368,7 +368,6 @@ class PolygonClickMapTool(QgsMapTool):
         
         self.stylePoylgon = os.path.join( os.path.dirname(__file__), 'polygonflood.qml' )
         self.layerFlood = None
-        self.fieldMetadata = None
 
     def __del__(self):
         del self.imageFlood
@@ -496,10 +495,6 @@ class PolygonClickMapTool(QgsMapTool):
             return
 
     def setLayerFlood(self, layer):
-        self.fieldMetadata = layer.customProperty( self.KEY_METADATA, None )
-        if not self.fieldMetadata is None and not self.fieldMetadata in layer.fields().names():
-            self.fieldMetadata = None
-
         msg = self.tr('Current layer is')
         msg = f"{msg} \"{layer.name()}\""
         self.msgBar.popWidget()
@@ -521,7 +516,8 @@ class PolygonClickMapTool(QgsMapTool):
             self.toolBack = self.mapCanvas.mapTool()
 
     def _getMetadata(self):
-        if not self.fieldMetadata:
+        field = self.layerFlood.customProperty( self.KEY_METADATA, None )
+        if not field or not field in self.layerFlood.fields().names():
             return None
         
         metadata =  json.dumps( {
@@ -530,7 +526,7 @@ class PolygonClickMapTool(QgsMapTool):
             'datetime': QDateTime.currentDateTime().toString( Qt.ISODate ),
             'scale': int( self.mapCanvas.scale() )
         } )
-        return { 'field': self.fieldMetadata, 'value': metadata }
+        return { 'field': field, 'value': metadata }
 
     def _savePolygon(self):
         totalImages = self.imageFlood.totalFlood()

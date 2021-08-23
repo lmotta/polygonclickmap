@@ -70,6 +70,13 @@ def buttonOkCancel():
     return btnBox
 
 
+def checkableGroupBox(title):
+    gb = QGroupBox( title )
+    gb.setCheckable( True )
+    gb.setChecked( True )
+    return gb
+
+
 class DialogSetup(QDialog):
     def __init__(self, parent, title, layer, keyMetadata):
         super().__init__( parent )
@@ -83,6 +90,7 @@ class DialogSetup(QDialog):
         self.statusArea = self._statusFieldArea( layer ) # { 'exists': True/False } if True: { 'name', 'index', 'crs' }
         
         self.leNameField, self.psCrs, self.cmbFieldsMetadata = None, None, None
+        self.gbArea, self.gbMetadata = None, None
         lytFields = self._layoutFields() 
 
         self.setWindowTitle( title )
@@ -165,15 +173,15 @@ class DialogSetup(QDialog):
             if crs.isGeographic():
                 self._messageErrorCrs()
 
-        lytFields = QVBoxLayout()
+        lytMain = QVBoxLayout()
         # Metadata
         lytMetadata = QHBoxLayout()
-        msg = self.tr( 'Metadata:' )
-        lytMetadata.addWidget( QLabel( msg ) )
         self.cmbFieldsMetadata = fieldsComboString()
         lytMetadata.addWidget( self.cmbFieldsMetadata )
         lytMetadata.addItem( QSpacerItem( 10, 10, QSizePolicy.Expanding, QSizePolicy.Minimum ) )
-        lytFields.addLayout( lytMetadata )
+        self.gbMetadata = checkableGroupBox( self.tr('Metadata') )
+        self.gbMetadata.setLayout( lytMetadata )
+        lytMain.addWidget( self.gbMetadata )
         # Area Ha
         lytArea = QHBoxLayout()
         lytArea.addWidget( labelIconNumber() )
@@ -199,15 +207,14 @@ class DialogSetup(QDialog):
         lytCrs = QHBoxLayout()
         lytCrs.addWidget( self.psCrs )
         # Area + CRS
-        lytAreaCrs = QVBoxLayout()
-        lytAreaCrs.addLayout( lytArea )
-        lytAreaCrs.addLayout( lytCrs )
-        gpbArea = QGroupBox( self.tr('Virtual area(ha)') )
-        gpbArea.setLayout( lytAreaCrs )
-        #
-        lytFields.addWidget( gpbArea )
-        
-        return lytFields
+        lyt = QVBoxLayout()
+        lyt.addLayout( lytArea )
+        lyt.addLayout( lytCrs )
+        self.gbArea = checkableGroupBox( self.tr('Virtual area(ha)') )
+        self.gbArea.setLayout( lyt )
+        lytMain.addWidget( self.gbArea )
+
+        return lytMain
 
     def _addArea(self):
         field = QgsField( self.leNameField.text(), QVariant.Double )
@@ -219,6 +226,10 @@ class DialogSetup(QDialog):
         expr = self.expArea.format( self.psCrs.crs().authid() )
         self.layer.updateExpressionField( index, expr )
 
+    def _removeArea(self):
+        index = self.statusArea['index']
+        self.layer.removeExpressionField( index )
+
     def currentCrs(self):
         return self.psCrs.crs()
 
@@ -227,24 +238,33 @@ class DialogSetup(QDialog):
 
     @pyqtSlot()
     def accept(self):
-        crs = self.psCrs.crs()
-        if not crs.isValid() or crs.isGeographic():
-            self._messageErrorCrs()
-            return
-
-        if not self.statusArea['exists']:
-            if not self.leNameField.text(): # empty
-                msg = self.tr('Virtual area is empty')
+        # Metadata
+        if self.gbMetadata.isChecked():
+            currentField = self.cmbFieldsMetadata.currentField()
+            if not currentField:
+                msg = self.tr('Metadata field is empty. Create a text field in layer.')
                 self.msgBar.pushCritical( self.title, msg )
                 return
-
-        currentField = self.cmbFieldsMetadata.currentField()
-        if currentField:
-            # Get Values Metadata: map_get( from_json("pcm_meta" ), 'rasters')[0]
             self.layer.setCustomProperty( self.keyMetadata, currentField )
         else:
-            self.layer.removeCustomProperty( self.keyMetadata ) 
-        f = self._addArea if not self.statusArea['exists'] else self._updateArea
-        f()
+            self.layer.removeCustomProperty( self.keyMetadata )
+        # Area ha
+        if self.gbArea.isChecked():
+            crs = self.psCrs.crs()
+            if not crs.isValid() or crs.isGeographic():
+                self._messageErrorCrs()
+                return
+
+            if not self.statusArea['exists']:
+                if not self.leNameField.text():
+                    msg = self.tr('Virtual area is empty')
+                    self.msgBar.pushCritical( self.title, msg )
+                    return
+
+            f = self._addArea if not self.statusArea['exists'] else self._updateArea
+            f()
+        else:
+            if self.statusArea['exists']:
+                self._removeArea()
 
         super().accept()
