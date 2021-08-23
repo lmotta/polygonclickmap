@@ -31,7 +31,7 @@ from qgis.PyQt.QtCore import QObject, pyqtSlot
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction, QToolButton, QMenu
 
-from qgis.core import QgsProject, QgsApplication
+from qgis.core import QgsProject, QgsApplication, QgsMessageOutput
 
 from .translate import Translate
 
@@ -59,7 +59,7 @@ class PolygonClickMapPlugin(QObject):
         self.translate = Translate( type(self).__name__ )
         self.tr = self.translate.tr
 
-        self.actions = { 'tool': None, 'layer_field': None }
+        self.actions = {}
         self.toolButton = QToolButton()
         self.toolButton.setMenu( QMenu() )
         self.toolButton.setPopupMode( QToolButton.MenuButtonPopup )
@@ -76,9 +76,10 @@ class PolygonClickMapPlugin(QObject):
             self.tool = PolygonClickMapTool( iface, self.pluginName )
 
     def initGui(self):
-        def createAction(icon, title, calback, isCheckable=False):
+        def createAction(icon, title, calback, hasToolTip=False, isCheckable=False):
             action = QAction( icon, title, self.iface.mainWindow() )
-            action.setToolTip( title )
+            if hasToolTip:
+                action.setToolTip( title )
             action.triggered.connect( calback )
             action.setCheckable( isCheckable )
             self.iface.addPluginToMenu( f"&{self.titleTool}" , action )
@@ -86,13 +87,17 @@ class PolygonClickMapPlugin(QObject):
 
         # Action Tool
         icon = QIcon( os.path.join( os.path.dirname(__file__), 'polygonclickmap.svg' ) )
-        self.actions['tool'] = createAction( icon, self.titleTool, self.runTool,True )
+        self.actions['tool'] = createAction( icon, self.titleTool, self.runTool, True, True )
         if EXISTSSCIPY:
             self.tool.setAction( self.actions['tool'] )
         # Action setFields
-        title = self.tr('Setup')
+        title = self.tr('Setup...')
         icon = QgsApplication.getThemeIcon('/propertyicons/general.svg')
         self.actions['layer_field'] = createAction( icon, title, self.runSetup )
+        # Action About
+        title = self.tr('About...')
+        icon = QgsApplication.getThemeIcon('/mActionHelpContents.svg')
+        self.actions['about'] = createAction( icon, title, self.runAbout )
         #
         self._enabled(False)
         m = self.toolButton.menu()
@@ -133,6 +138,22 @@ class PolygonClickMapPlugin(QObject):
             dlg.setCurrentCrs( self.currentCrs )
         if dlg.exec_() == dlg.Accepted:
             self.currentCrs = dlg.currentCrs()
+
+    @pyqtSlot(bool)
+    def runAbout(self, checked):
+        def readFile(filepath):
+            with open(filepath, 'r') as reader:
+                content = reader.read()
+            return content
+
+        dlg = QgsMessageOutput.createMessageOutput()
+        msg = self.tr('{} - About')
+        msg = msg.format( self.pluginName )
+        dlg.setTitle( msg )
+        filepath = os.path.join( os.path.dirname(__file__), 'about.html' )
+        content = readFile( filepath )
+        dlg.setMessage( content, QgsMessageOutput.MessageHtml )
+        dlg.showMessage()
 
     @pyqtSlot('QgsMapLayer*')
     def _currentLayerChanged(self, layer):
