@@ -76,22 +76,23 @@ class PolygonClickMapPlugin(QObject):
             self.tool = PolygonClickMapTool( iface, self.pluginName )
 
     def initGui(self):
+        def createAction(icon, title, calback, isCheckable=False):
+            action = QAction( icon, title, self.iface.mainWindow() )
+            action.setToolTip( title )
+            action.triggered.connect( calback )
+            action.setCheckable( isCheckable )
+            self.iface.addPluginToMenu( f"&{self.titleTool}" , action )
+            return action
+
         # Action Tool
         icon = QIcon( os.path.join( os.path.dirname(__file__), 'polygonclickmap.svg' ) )
-        self.actions['tool'] = QAction( icon, self.titleTool, self.iface.mainWindow() )
-        self.actions['tool'].setToolTip( self.titleTool )
-        self.actions['tool'].triggered.connect( self.runTool )
-        self.actions['tool'].setCheckable( True )
+        self.actions['tool'] = createAction( icon, self.titleTool, self.runTool,True )
         if EXISTSSCIPY:
             self.tool.setAction( self.actions['tool'] )
-        self.iface.addPluginToMenu( f"&{self.titleTool}" , self.actions['tool'] )
         # Action setFields
         title = self.tr('Setup')
         icon = QgsApplication.getThemeIcon('/propertyicons/general.svg')
-        self.actions['layer_field'] = QAction( icon, title, self.iface.mainWindow() )
-        self.actions['layer_field'].setToolTip( title )
-        self.actions['layer_field'].triggered.connect( self.runSetup )
-        self.iface.addPluginToMenu( f"&{self.titleTool}" , self.actions['layer_field'] )
+        self.actions['layer_field'] = createAction( icon, title, self.runSetup )
         #
         self._enabled(False)
         m = self.toolButton.menu()

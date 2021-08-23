@@ -21,22 +21,22 @@
     <message>
         <location filename="../dialog_setup.py" line="182"/>
         <source>Metadata</source>
-        <translation>Metadados</translation>
+        <translation>Metadado</translation>
     </message>
     <message>
         <location filename="../dialog_setup.py" line="188"/>
         <source>Field name:</source>
-        <translation>Nopme do campo:</translation>
+        <translation>Nome do campo:</translation>
     </message>
     <message>
         <location filename="../dialog_setup.py" line="213"/>
         <source>Virtual area(ha)</source>
-        <translation>Áre virtual(ha)</translation>
+        <translation>Área virtual(ha)</translation>
     </message>
     <message>
         <location filename="../dialog_setup.py" line="245"/>
         <source>Metadata field is empty. Create a text field in layer.</source>
-        <translation>Campo de metadados está vazio. Crie um campo do tipo texto na camada.</translation>
+        <translation>Campo de metadado está vazio. Crie um campo do tipo texto na camada.</translation>
     </message>
     <message>
         <location filename="../dialog_setup.py" line="260"/>
