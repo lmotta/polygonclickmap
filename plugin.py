@@ -28,9 +28,10 @@ __revision__ = '$Format:%H$'
 
 from qgis.PyQt.QtCore import (
     QObject, pyqtSlot, QCoreApplication,
-    QVariant
+    QVariant,
+    QRegExp
 )
-from qgis.PyQt.QtGui import QIcon
+from qgis.PyQt.QtGui import QIcon, QRegExpValidator
 from qgis.PyQt.QtWidgets import (
     QAction, QToolButton, QMenu,
     QDialog, QVBoxLayout, QHBoxLayout,
@@ -42,9 +43,14 @@ from qgis.PyQt.QtWidgets import (
 
 from qgis.core import (
     QgsProject, QgsApplication,
-    QgsFieldProxyModel, QgsField
+    QgsFieldProxyModel, QgsField,
+    QgsCoordinateReferenceSystem
 )
-from qgis.gui import QgsFieldComboBox
+from qgis.gui import (
+    QgsFieldComboBox,
+    QgsMessageBar,
+    QgsProjectionSelectionWidget
+)
 
 from .translate import Translate
 
@@ -165,13 +171,20 @@ class PolygonClickMapPlugin(QObject):
             }
 
         def dialogSetup(layer, statusArea):
+            def boldLabel(lbl):
+                font = lbl.font()
+                font.setBold( True )
+                lbl.setFont( font )
+
+            def messageErrorCrs():
+                msg = self.tr('Invalid CRS(need be projected)')
+                msgBar.pushCritical( self.pluginName, msg )
+
             def widgetLayer():
                 msg = self.tr( 'Layer: {}' )
                 msg = msg.format( layer.name() )
                 lbl = QLabel( msg )
-                font = lbl.font()
-                font.setBold( True )
-                lbl.setFont( font )
+                boldLabel( lbl )
                 return lbl
 
             def layoutFields():
@@ -188,6 +201,11 @@ class PolygonClickMapPlugin(QObject):
                         w.setCurrentIndex( idx )
                     return w
 
+                @pyqtSlot(QgsCoordinateReferenceSystem)
+                def crsChanged(crs):
+                    if crs.isGeographic():
+                        messageErrorCrs()
+
                 lytFields = QVBoxLayout()
                 # Metadata
                 lytMetadata = QHBoxLayout()
@@ -195,26 +213,46 @@ class PolygonClickMapPlugin(QObject):
                 lytMetadata.addWidget( QLabel( msg ) )
                 cmbFields = fieldsComboString()
                 lytMetadata.addWidget( cmbFields )
+                #lytMetadata.addItem( QSpacerItem( 10, 10, QSizePolicy.Expanding, QSizePolicy.Minimum ) )
                 lytFields.addLayout( lytMetadata )
-                # Area Ha
-                lytArea = QHBoxLayout()
-                msg = self.tr('Virtual area(ha):')
-                lytArea.addWidget( QLabel( msg ) )
                 #
                 result = {
                     'cmbFields': cmbFields,
-                    'layout': lytFields
+                    'layout': lytFields,
                 }
+                # Area Ha
+                lytArea = QHBoxLayout()
+                lytArea.addWidget( QLabel( self.tr('Field name:') ) )
                 if statusArea['exists']:
-                    lytArea.addWidget( QLabel( statusArea['name'] ) )
-                    result['wgtCrs'] = QLabel( statusArea['crs'] )
-                    lytArea.addWidget( result['wgtCrs'] )
+                    lbl = QLabel( statusArea['name'] )
+                    boldLabel( lbl )
+                    lytArea.addWidget( lbl )
                 else:
-                    result['wgtName'] = QLineEdit('area_ha')
-                    lytArea.addWidget( result['wgtName'] )
-                    result['wgtCrs'] = QLabel('EPSG:5880')
-                    lytArea.addWidget( result['wgtCrs'] )
-                lytFields.addLayout( lytArea )
+                    result['lblName'] = QLineEdit('area_ha')
+                    regex = QRegExp('[A-Za-z0-9_]+')
+                    validator = QRegExpValidator( regex )
+                    result['lblName'].setValidator( validator )
+                    lytArea.addWidget( result['lblName'] )
+                # CRS
+                psCrs = QgsProjectionSelectionWidget()
+                result['psCrs'] = psCrs
+                for opt in ( psCrs.LayerCrs, psCrs.ProjectCrs, psCrs.CurrentCrs, psCrs.DefaultCrs, psCrs.RecentCrs ):
+                    psCrs.setOptionVisible( opt, False )
+                if statusArea['exists']:
+                    crs = QgsCoordinateReferenceSystem( statusArea['crs'] )
+                    if not crs.isGeographic():
+                        psCrs.setCrs( crs )
+                psCrs.crsChanged.connect( crsChanged )
+                lytCrs = QHBoxLayout()
+                lytCrs.addWidget( psCrs )
+                # Area + CRS
+                lytAreaCrs = QVBoxLayout()
+                lytAreaCrs.addLayout( lytArea )
+                lytAreaCrs.addLayout( lytCrs )
+                gpbArea = QGroupBox( self.tr('Virtual area(ha)') )
+                gpbArea.setLayout( lytAreaCrs )
+                #
+                lytFields.addWidget( gpbArea )
                 return result
 
             def buttonOkCancel():
@@ -240,6 +278,8 @@ class PolygonClickMapPlugin(QObject):
             d = QDialog(self.iface.mainWindow() )
             d.setWindowTitle( self.pluginName )
             lytMain = QVBoxLayout()
+            msgBar = QgsMessageBar()
+            lytMain.addWidget( msgBar )
             lytMain.addWidget( widgetLayer() )
             infoLayoutFields = layoutFields()
             gpbFields = QGroupBox( self.tr('Fields') )
@@ -248,18 +288,31 @@ class PolygonClickMapPlugin(QObject):
             lytMain.addWidget( buttonOkCancel() )
             lytMain.addItem( QSpacerItem( 10, 10, QSizePolicy.Minimum, QSizePolicy.Expanding ) )
             d.setLayout( lytMain )
-            d.exec_()
-            if d.result() == QDialog.Accepted:
-                currentField = infoLayoutFields['cmbFields'].currentField()
-                if currentField:
-                    # Get Values Metadata: map_get( from_json("pcm_meta" ), 'rasters')[0]
-                    layer.setCustomProperty( PolygonClickMapTool.KEY_METADATA, currentField )
-                expr = statusArea['expr'].format( infoLayoutFields['wgtCrs'].text() )
-                if not statusArea['exists']:
-                    name = infoLayoutFields['wgtName'].text()
-                    addArea( name, expr )
-                else:
-                    updateArea( statusArea['index'], expr )
+            while True:
+                d.exec_()
+                if d.result() == QDialog.Accepted:
+                    if infoLayoutFields['psCrs'].crs().isGeographic():
+                        messageErrorCrs()
+                        continue
+
+                    if not statusArea['exists']:
+                        name = infoLayoutFields['lblName'].text()
+                        if not name: # empty
+                            msg = self.tr('Virtual area is empty')
+                            msgBar.pushCritical( self.pluginName, msg )
+                            continue
+
+                    currentField = infoLayoutFields['cmbFields'].currentField()
+                    if currentField:
+                        # Get Values Metadata: map_get( from_json("pcm_meta" ), 'rasters')[0]
+                        layer.setCustomProperty( PolygonClickMapTool.KEY_METADATA, currentField )
+                    expr = statusArea['expr'].format( infoLayoutFields['psCrs'].crs().authid() )
+                    if not statusArea['exists']:
+                        name = infoLayoutFields['lblName'].text()
+                        addArea( name, expr )
+                    else:
+                        updateArea( statusArea['index'], expr )
+                break
 
         layer = self.iface.activeLayer()
         status = statusFieldArea( layer )
