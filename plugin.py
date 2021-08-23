@@ -54,6 +54,7 @@ class PolygonClickMapPlugin(QObject):
         self.iface = iface
         self.mapCanvas = iface.mapCanvas() 
         self.project = QgsProject.instance()
+        self.currentCrs = None
 
         self.translate = Translate( type(self).__name__ )
         self.tr = self.translate.tr
@@ -127,7 +128,10 @@ class PolygonClickMapPlugin(QObject):
     def runSetup(self, checked):
         layer = self.iface.activeLayer()
         dlg = DialogSetup( self.iface.mainWindow(), self.pluginName, layer, PolygonClickMapTool.KEY_METADATA )
-        dlg.exec_()
+        if self.currentCrs:
+            dlg.setCurrentCrs( self.currentCrs )
+        if dlg.exec_() == dlg.Accepted:
+            self.currentCrs = dlg.currentCrs()
 
     @pyqtSlot('QgsMapLayer*')
     def _currentLayerChanged(self, layer):

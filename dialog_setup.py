@@ -28,7 +28,8 @@ __revision__ = '$Format:%H$'
 from qgis.PyQt.QtCore import (
     pyqtSlot,
     QVariant,
-    QRegExp
+    QRegExp,
+    QSize
 )
 from qgis.PyQt.QtGui import QRegExpValidator
 from qgis.PyQt.QtWidgets import (
@@ -40,6 +41,7 @@ from qgis.PyQt.QtWidgets import (
 )
 
 from qgis.core import (
+    QgsApplication,
     QgsFieldProxyModel, QgsField,
     QgsCoordinateReferenceSystem
 )
@@ -95,6 +97,7 @@ class DialogSetup(QDialog):
         btnBox.rejected.connect( self.reject )
         lytMain.addWidget( btnBox )
         lytMain.addItem( QSpacerItem( 10, 10, QSizePolicy.Minimum, QSizePolicy.Expanding ) )
+        self.setLayout( lytMain )
 
     def _statusFieldArea(self, layer):
         ini_expArea = self.expArea.split('{')[0]
@@ -146,10 +149,16 @@ class DialogSetup(QDialog):
             return w
 
         def projectionSelectionWidget():
-            p = QgsProjectionSelectionWidget
+            p = QgsProjectionSelectionWidget()
             for opt in ( p.LayerCrs, p.ProjectCrs, p.CurrentCrs, p.DefaultCrs, p.RecentCrs ):
                 p.setOptionVisible( opt, False )
             return p
+
+        def labelIconNumber():
+            icon = QgsApplication.getThemeIcon('/mIconFieldFloat.svg')
+            lbl = QLabel()
+            lbl.setPixmap( icon.pixmap( QSize(16, 16) ) )
+            return lbl
 
         @pyqtSlot(QgsCoordinateReferenceSystem)
         def crsChanged(crs):
@@ -163,10 +172,11 @@ class DialogSetup(QDialog):
         lytMetadata.addWidget( QLabel( msg ) )
         self.cmbFieldsMetadata = fieldsComboString()
         lytMetadata.addWidget( self.cmbFieldsMetadata )
-        #lytMetadata.addItem( QSpacerItem( 10, 10, QSizePolicy.Expanding, QSizePolicy.Minimum ) )
+        lytMetadata.addItem( QSpacerItem( 10, 10, QSizePolicy.Expanding, QSizePolicy.Minimum ) )
         lytFields.addLayout( lytMetadata )
         # Area Ha
         lytArea = QHBoxLayout()
+        lytArea.addWidget( labelIconNumber() )
         lytArea.addWidget( QLabel( self.tr('Field name:') ) )
         if self.statusArea['exists']:
             lbl = QLabel( self.statusArea['name'] )
@@ -176,8 +186,9 @@ class DialogSetup(QDialog):
             self.leNameField = QLineEdit('area_ha')
             regex = QRegExp('[A-Za-z0-9_]+')
             validator = QRegExpValidator( regex )
-            self.lblNameField.setValidator( validator )
+            self.leNameField.setValidator( validator )
             lytArea.addWidget( self.leNameField )
+        lytArea.addItem( QSpacerItem( 10, 10, QSizePolicy.Expanding, QSizePolicy.Minimum ) )
         # CRS
         self.psCrs = projectionSelectionWidget()
         if self.statusArea['exists']:
@@ -208,22 +219,31 @@ class DialogSetup(QDialog):
         expr = self.expArea.format( self.psCrs.crs().authid() )
         self.layer.updateExpressionField( index, expr )
 
+    def currentCrs(self):
+        return self.psCrs.crs()
+
+    def setCurrentCrs(self, crs):
+        return self.psCrs.setCrs( crs )
+
     @pyqtSlot()
     def accept(self):
-        if self.psCrs.crs().isGeographic():
+        crs = self.psCrs.crs()
+        if not crs.isValid() or crs.isGeographic():
             self._messageErrorCrs()
             return
 
         if not self.statusArea['exists']:
-            if not self.leName.text(): # empty
+            if not self.leNameField.text(): # empty
                 msg = self.tr('Virtual area is empty')
-                self.msgBar.pushCritical( self.pluginName, msg )
+                self.msgBar.pushCritical( self.title, msg )
                 return
 
         currentField = self.cmbFieldsMetadata.currentField()
         if currentField:
             # Get Values Metadata: map_get( from_json("pcm_meta" ), 'rasters')[0]
             self.layer.setCustomProperty( self.keyMetadata, currentField )
+        else:
+            self.layer.removeCustomProperty( self.keyMetadata ) 
         f = self._addArea if not self.statusArea['exists'] else self._updateArea
         f()
 
