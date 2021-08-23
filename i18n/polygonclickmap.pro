@@ -1,6 +1,7 @@
 SOURCES = \
 ../plugin.py \
-../polygonclickmap.py
+../polygonclickmap.py \
+../dialog_setup.py
 
 TRANSLATIONS = \
 ./pt.ts
