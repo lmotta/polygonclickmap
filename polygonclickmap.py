@@ -72,8 +72,8 @@ class ImageFlood(QObject):
 
         self.rastersCanvas = None # [ RasterLayer inside Canvas]
 
-        self.stylePoint = os.path.join( os.path.dirname(__file__), 'pointflood.qml' )
-        self.styleRaster = os.path.join( os.path.dirname(__file__), 'rasterflood.qml' )
+        self.stylePoint = os.path.join( os.path.dirname(__file__), 'resources', 'pointflood.qml' )
+        self.styleRaster = os.path.join( os.path.dirname(__file__), 'resources', 'rasterflood.qml' )
 
         self.filenameRasterFlood = '/vsimem/raster_flood.tif'
         self.existsLinkRasterFlood = False
@@ -365,8 +365,6 @@ class PolygonClickMapTool(QgsMapTool):
         self.msecondsMoveFlood = 1000
 
         self.pointCanvas = None
-        
-        self.stylePoylgon = os.path.join( os.path.dirname(__file__), 'polygonflood.qml' )
         self.layerFlood = None
 
     def __del__(self):

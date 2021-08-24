@@ -86,7 +86,7 @@ class PolygonClickMapPlugin(QObject):
             return action
 
         # Action Tool
-        icon = QIcon( os.path.join( os.path.dirname(__file__), 'polygonclickmap.svg' ) )
+        icon = QIcon( os.path.join( os.path.dirname(__file__), 'resources', 'polygonclickmap.svg' ) )
         self.actions['tool'] = createAction( icon, self.titleTool, self.runTool, True, True )
         if EXISTSSCIPY:
             self.tool.setAction( self.actions['tool'] )
@@ -150,10 +150,15 @@ class PolygonClickMapPlugin(QObject):
         msg = self.tr('{} - About')
         msg = msg.format( self.pluginName )
         dlg.setTitle( msg )
-        filepath = os.path.join( os.path.dirname(__file__), 'about.html' )
-        content = readFile( filepath )
+
+        pathCurrent = os.getcwd()
+        os.chdir( os.path.join( os.path.dirname(__file__), 'resources' ) )
+        content = readFile('about.html') # https://html-online.com/editor/
         dlg.setMessage( content, QgsMessageOutput.MessageHtml )
         dlg.showMessage()
+        os.chdir( pathCurrent )
+
+        
 
     @pyqtSlot('QgsMapLayer*')
     def _currentLayerChanged(self, layer):

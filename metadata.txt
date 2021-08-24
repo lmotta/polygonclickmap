@@ -18,7 +18,7 @@ homepage:https://github.com/lmotta/polygonclickmap/wiki
 tracker:https://github.com/lmotta/polygonclickmap/issues
 repository:https://github.com/lmotta/polygonclickmap
 
-icon:polygonclickmap.svg
+icon:./resources/polygonclickmap.svg
 
 experimental:True
 deprecated:False
