@@ -592,7 +592,6 @@ class PolygonClickMapTool(QgsMapTool):
          . Clear: C Key
          . Fill holes: F Key.
          . Poligonize: P Key. *** Create polygon from image ***
-         . Help: H Key
 
         Menu Setup.
         . Select the exists field, text type(will be populate with metadata of tool).
