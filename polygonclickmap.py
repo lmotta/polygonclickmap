@@ -572,7 +572,7 @@ class PolygonClickMapTool(QgsMapTool):
     def _help(self):
         msg =  self.tr( """
         *** HELP - {} ***
-        Create polygon by click in image
+        Create polygon by clicking on the map image
 
         Steps:
         - Creating an Image of growth.
@@ -595,7 +595,7 @@ class PolygonClickMapTool(QgsMapTool):
 
         Menu Setup.
         . Select the exists field, text type(will be populate with metadata of tool).
-        Metadata: List of visible rasters layers images, user, datetime and sclae of map.
+        Metadata: List of visible rasters layers images, user, datetime and scale of map.
         . Virtual area(ha): will be added a expression onto polygon layer for calculate area(ha).
 
         Menu About.

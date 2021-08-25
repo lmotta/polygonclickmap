@@ -64,7 +64,7 @@ class PolygonClickMapPlugin(QObject):
         self.toolButton.setMenu( QMenu() )
         self.toolButton.setPopupMode( QToolButton.MenuButtonPopup )
         self.toolBtnAction = self.iface.addToolBarWidget( self.toolButton )
-        self.titleTool = self.tr('Create polygon by clicking in map')
+        self.titleTool = self.tr('Create polygon by clicking on the map. * Only for editable layers.')
 
         self.editingSignalSlot = lambda layer: {
             layer.editingStarted: self._editingStarted,
@@ -153,12 +153,13 @@ class PolygonClickMapPlugin(QObject):
 
         pathCurrent = os.getcwd()
         os.chdir( os.path.join( os.path.dirname(__file__), 'resources' ) )
-        content = readFile('about.html') # https://html-online.com/editor/
+        file = f"about_{QgsApplication.locale()}.html"
+        if not os.path.exists( file):
+            file = f"about_en.html"
+        content = readFile( file )
         dlg.setMessage( content, QgsMessageOutput.MessageHtml )
         dlg.showMessage()
         os.chdir( pathCurrent )
-
-        
 
     @pyqtSlot('QgsMapLayer*')
     def _currentLayerChanged(self, layer):
