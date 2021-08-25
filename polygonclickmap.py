@@ -84,6 +84,10 @@ class ImageFlood(QObject):
 
     def __del__(self):
         self.canvasImage.dataset = None
+        try:
+            gdal.Unlink( self.filenameRasterFlood )
+        except:
+            pass
 
     def setLayerSeed(self, pointMap):
         def createQgsSeedVector():
@@ -283,10 +287,6 @@ class ImageFlood(QObject):
         return totalFeats
 
     def _rasterFlood(self, arrayFlood):
-        try:
-            gdal.Unlink( self.filenameRasterFlood )
-        except:
-            pass
         tran = self.canvasImage.dataset.GetGeoTransform()
         sr = self.canvasImage.dataset.GetSpatialRef()
         ds1 = createDatasetMem( arrayFlood, tran, sr, self.calcFlood.flood_out )
