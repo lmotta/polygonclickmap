@@ -48,7 +48,7 @@ from scipy import ndimage
 
 import os, json
 
-from .utils import MapItemFlood, CanvasImage, CalculateArrayFlood, createDatasetMem
+from .utils import MapItemFlood, CanvasImage, CalculateArrayFlood, createDatasetMem, adjustsBorder
 
 from .canvas_anottation import AnnotationCanvas
 
@@ -57,7 +57,7 @@ class ImageFlood(QObject):
     finishMovingFloodCanvas = pyqtSignal(bool)
     finishAddedFloodCanvas = pyqtSignal(bool, int)
     finishAddedMoveFloodCanvas = pyqtSignal(bool, int)
-    def __init__(self, mapCanvas ):
+    def __init__(self, mapCanvas):
         super().__init__()
         self.canvasImage = CanvasImage( mapCanvas )
         self.mapItem = MapItemFlood( mapCanvas )
@@ -78,7 +78,6 @@ class ImageFlood(QObject):
         self.styleRaster = os.path.join( os.path.dirname(__file__), 'resources', 'rasterflood.qml' )
 
         self.filenameRasterFlood = '/vsimem/raster_flood.tif'
-        self.existsLinkRasterFlood = False
 
         self.smooth_iter = 1
         self.smooth_offset  = 0.25
@@ -236,7 +235,7 @@ class ImageFlood(QObject):
         self._setMapItem()
         return True
 
-    def polygonizeFlood(self, layerFlood, metadata):
+    def polygonizeFlood(self, layerFlood, metadata, hasAdjustsBorder):
         def polygonizeFlood(arrayFlood):
             tran = self.canvasImage.dataset.GetGeoTransform()
             srs = self.canvasImage.dataset.GetSpatialRef()
@@ -267,6 +266,8 @@ class ImageFlood(QObject):
             g = g.smooth( self.smooth_iter, self.smooth_offset )
             g.transform( ct )
             f = QgsFeature( fields )
+            if hasAdjustsBorder:
+                g = adjustsBorder( g, layerFlood )
             f.setGeometry( g )
             if metadata:
                 f[ metadata['field'] ] = metadata['value']
@@ -282,8 +283,10 @@ class ImageFlood(QObject):
         return totalFeats
 
     def _rasterFlood(self, arrayFlood):
-        if self.existsLinkRasterFlood:
+        try:
             gdal.Unlink( self.filenameRasterFlood )
+        except:
+            pass
         tran = self.canvasImage.dataset.GetGeoTransform()
         sr = self.canvasImage.dataset.GetSpatialRef()
         ds1 = createDatasetMem( arrayFlood, tran, sr, self.calcFlood.flood_out )
@@ -294,7 +297,6 @@ class ImageFlood(QObject):
         ds1, ds2 = None, None
         rl = QgsRasterLayer( self.filenameRasterFlood, 'raster', 'gdal')
         rl.loadNamedStyle( self.styleRaster )
-        self.existsLinkRasterFlood = True
         return rl
 
     def _finishedFloodCanvas(self, dataResult ):
@@ -339,6 +341,7 @@ class ImageFlood(QObject):
 
 class PolygonClickMapTool(QgsMapTool):
     KEY_METADATA = 'PolygonClickMapTool_metadata'
+    KEY_ADJUSTSBORDER = 'PolygonClickMapTool_adjusts_border'
     def __init__(self, iface, pluginName):
         self.mapCanvas = iface.mapCanvas()
         self.pluginName = pluginName
@@ -488,7 +491,8 @@ class PolygonClickMapTool(QgsMapTool):
                 self.msgBar.pushWarning( self.pluginName, msg )
                 return
 
-            totalFeats = self.imageFlood.polygonizeFlood( self.layerFlood, self._getMetadata() )
+            hasAdjustsBorder = self.layerFlood.customProperty( self.KEY_ADJUSTSBORDER, False )
+            totalFeats = self.imageFlood.polygonizeFlood( self.layerFlood, self._getMetadata(), hasAdjustsBorder )
             if not totalFeats:
                 msg = self.tr('Polygonize - Missing features')
             else:

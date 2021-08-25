@@ -35,7 +35,7 @@ from qgis.PyQt.QtGui import QRegExpValidator
 from qgis.PyQt.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout,
     QGroupBox,
-    QLabel, QLineEdit,
+    QLabel, QLineEdit, QCheckBox,
     QDialogButtonBox,
     QSpacerItem, QSizePolicy
 )
@@ -78,11 +78,12 @@ def checkableGroupBox(title):
 
 
 class DialogSetup(QDialog):
-    def __init__(self, parent, title, layer, keyMetadata):
+    def __init__(self, parent, title, layer, keyMetadata, keyAdjustsBorder):
         super().__init__( parent )
         self.title = title
         self.layer = layer
         self.keyMetadata = keyMetadata
+        self.keyAdjustsBorder = keyAdjustsBorder
 
         self.msgBar = QgsMessageBar()
 
@@ -100,6 +101,10 @@ class DialogSetup(QDialog):
         gpbFields = QGroupBox( self.tr('Fields') )
         gpbFields.setLayout( lytFields )
         lytMain.addWidget( gpbFields )
+        self.chkAdjustBorder = QCheckBox( self.tr('Adjusts border') )
+        isChecked = self.layer.customProperty( keyAdjustsBorder, False )
+        self.chkAdjustBorder.setChecked( isChecked )            
+        lytMain.addWidget( self.chkAdjustBorder )
         btnBox = buttonOkCancel()
         btnBox.accepted.connect( self.accept )
         btnBox.rejected.connect( self.reject )
@@ -248,6 +253,9 @@ class DialogSetup(QDialog):
             self.layer.setCustomProperty( self.keyMetadata, currentField )
         else:
             self.layer.removeCustomProperty( self.keyMetadata )
+        # Ajusts border
+        isChecked = self.chkAdjustBorder.isChecked()
+        self.layer.setCustomProperty( self.keyAdjustsBorder, isChecked )
         # Area ha
         if self.gbArea.isChecked():
             crs = self.psCrs.crs()
@@ -266,5 +274,4 @@ class DialogSetup(QDialog):
         else:
             if self.statusArea['exists']:
                 self._removeArea()
-
         super().accept()

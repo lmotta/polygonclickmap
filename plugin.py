@@ -38,10 +38,12 @@ from .translate import Translate
 from .utils import connectSignalSlot
 
 EXISTSSCIPY = True
-try:
-    from .polygonclickmap import PolygonClickMapTool # from scipy import ndimage
-except:
-    EXISTSSCIPY = False
+# try:
+#     from .polygonclickmap import PolygonClickMapTool # from scipy import ndimage
+# except:
+#     EXISTSSCIPY = False
+from .polygonclickmap import PolygonClickMapTool # from scipy import ndimage
+
 
 from .dialog_setup import DialogSetup
 
@@ -133,7 +135,7 @@ class PolygonClickMapPlugin(QObject):
     @pyqtSlot(bool)
     def runSetup(self, checked):
         layer = self.iface.activeLayer()
-        dlg = DialogSetup( self.iface.mainWindow(), self.pluginName, layer, PolygonClickMapTool.KEY_METADATA )
+        dlg = DialogSetup( self.iface.mainWindow(), self.pluginName, layer, PolygonClickMapTool.KEY_METADATA, PolygonClickMapTool.KEY_ADJUSTSBORDER )
         if self.currentCrs:
             dlg.setCurrentCrs( self.currentCrs )
         if dlg.exec_() == dlg.Accepted:

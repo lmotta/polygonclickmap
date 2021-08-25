@@ -32,7 +32,9 @@ from qgis.core import (
     QgsMapLayer,
     QgsMapSettings, 
     QgsMapRendererParallelJob,
-    QgsCoordinateTransform
+    QgsCoordinateTransform,
+    QgsGeometry, QgsPolygon, QgsLineString, QgsPoint,
+    QgsFeature
 )
 from qgis.gui import QgsMapCanvasItem 
 
@@ -290,3 +292,39 @@ def connectSignalSlot(signal, slot):
         pass
     signal.connect( slot )
 
+def adjustsBorder(geom, layer):
+    def getGeomAjustBorder(geom2ajust, geom):
+        def getGeomsInternalRing(rings):
+            # rings = [ QgsPointXY ]
+            for idRing in range(1, len( rings ) ):
+                ringPoints = [ QgsPoint( p ) for p in rings[ idRing  ] ]  # [ QgsPoint ]
+                line = QgsLineString( ringPoints )
+                del ringPoints[:]
+                polygon = QgsPolygon()
+                polygon.setExteriorRing( line )
+                del line
+                yield QgsGeometry( polygon )
+
+        def getBorderCombine():
+            border = geom.removeInteriorRings()
+            border2ajust = geom2ajust.removeInteriorRings()
+            return border2ajust.combine( border )
+
+        border = getBorderCombine()
+        rings = border.asPolygon()
+        result = geom2ajust.difference( geom )
+        if len( rings ) == 1: # Not gaps
+            return result
+        
+        for geom in getGeomsInternalRing( rings):
+            result = result.combine( geom )
+        return result
+
+    result = geom
+    iter = layer.getFeatures( geom.boundingBox() )
+    feat = QgsFeature()
+    while iter.nextFeature( feat ):
+        g = feat.geometry()
+        if geom.overlaps( g ):
+            result = getGeomAjustBorder( result, g )
+    return result
