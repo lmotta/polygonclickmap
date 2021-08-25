@@ -50,6 +50,8 @@ import os, json
 
 from .utils import MapItemFlood, CanvasImage, CalculateArrayFlood, createDatasetMem
 
+from .canvas_anottation import AnnotationCanvas
+
 
 class ImageFlood(QObject):
     finishMovingFloodCanvas = pyqtSignal(bool)
@@ -359,6 +361,9 @@ class PolygonClickMapTool(QgsMapTool):
         self.imageFlood.finishAddedFloodCanvas.connect( self._finishAddedFloodCanvas )
         self.imageFlood.finishAddedMoveFloodCanvas.connect( self._finishAddedFloodCanvas )
 
+        self.annotCanvas = AnnotationCanvas( self.mapCanvas )
+        self.textHelp = self._help()
+
         self.hasPressPoint = False
         self.startedMoveFlood = False
         self.dtMoveFloodIni = None
@@ -421,6 +426,9 @@ class PolygonClickMapTool(QgsMapTool):
         self.imageFlood.movingFloodCanvas( self.pointCanvas, treshold )
 
     def canvasReleaseEvent(self, e):
+        if self.imageFlood.rastersCanvas is None:
+            return
+
         if not len( self.imageFlood.rastersCanvas):
             msg = self.tr('Missing raster layer visible in Map')
             self.msgBar.pushWarning( self.pluginName, msg )
@@ -441,9 +449,18 @@ class PolygonClickMapTool(QgsMapTool):
 
         self.imageFlood.addFloodMoveCanvas()
 
+    def keyPressEvent (self, e):
+        key = e.key()
+        if e.key() == Qt.Key_H:
+            self.annotCanvas.setText( self.textHelp )
+
     def keyReleaseEvent(self, e):
         key = e.key()
-        if not key in( Qt.Key_D, Qt.Key_U, Qt.Key_H, Qt.Key_P, Qt.Key_C ): # Delete, Undo, Hole, Polygonize, Clear
+        if not key in( Qt.Key_D, Qt.Key_U, Qt.Key_H, Qt.Key_F, Qt.Key_P, Qt.Key_C ): # Delete, Undo, Help, Fill, Polygonize, Clear
+            return
+
+        if e.key() == Qt.Key_H:
+            self.annotCanvas.remove()
             return
 
         if e.key() == Qt.Key_D:
@@ -456,7 +473,7 @@ class PolygonClickMapTool(QgsMapTool):
                 self._setTextMessage(f"{self.imageFlood.totalFlood()} images")
             return
 
-        if e.key() == Qt.Key_H:
+        if e.key() == Qt.Key_F:
             if self.imageFlood.fillHolesFlood():
                 self._setTextMessage(f"remove holes - {self.imageFlood.totalFlood()} images")
             return
@@ -551,6 +568,42 @@ class PolygonClickMapTool(QgsMapTool):
 
     def _setValueTreshold(self, treshold):
         self.spThreshFlood.setValue( treshold )
+
+    def _help(self):
+        msg =  self.tr( """
+        *** HELP - {} ***
+        Create polygon by click in image
+
+        Steps:
+        - Creating an Image of growth.
+         . The tool create a image of growth from the clicked point, seed point, in the map.
+         . The growth depends on the threshold used. The RGB value of the seed point is compared with its neighbors, 
+         if the difference is smaller then threshold, the image grows.
+         . The threshold value is show right side of status bar in QGIS window.
+         . Can change the threshold value directly in the value box or by clicking and dragging the mouse.
+         Mouse: moving to the right or up, the treshold increases, otherwise it decreases.
+         . Using the mouse, clicking and dragging, the image is changed automatically.
+         Clicking one time, the image is made with value of threshold.
+
+        - Working with Images of Growth.
+         . Show or hide: Use right botton of mouse.
+         . Delete the last image: D key.
+         . Undo: U Key.
+         . Clear: C Key
+         . Fill holes: F Key.
+         . Poligonize: P Key. *** Create polygon from image ***
+         . Help: H Key
+
+        Menu Setup.
+        . Select the exists field, text type(will be populate with metadata of tool).
+        Metadata: List of visible rasters layers images, user, datetime and sclae of map.
+        . Virtual area(ha): will be added a expression onto polygon layer for calculate area(ha).
+
+        Menu About.
+        . Show information about this plugin.
+        . Donation is most welcome!
+        """)
+        return msg.format( self.pluginName )
 
     @pyqtSlot()
     def _nameChangedLayerFlood(self):

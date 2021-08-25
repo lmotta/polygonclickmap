@@ -54,83 +54,98 @@
     <message>
         <location filename="../plugin.py" line="89"/>
         <source>Setup</source>
-        <translation>Configuração</translation>
+        <translation type="obsolete">Configuração</translation>
     </message>
     <message>
-        <location filename="../plugin.py" line="139"/>
+        <location filename="../plugin.py" line="166"/>
         <source>Missing &apos;scipy&apos; libray. Need install scipy(https://www.scipy.org/install.html)</source>
         <translation>Faltando biblioteca &apos;scipy&apos;. Precisa instalar scipy(https://www.scipy.org/install.html)</translation>
+    </message>
+    <message>
+        <location filename="../plugin.py" line="94"/>
+        <source>Setup...</source>
+        <translation>Configuração...</translation>
+    </message>
+    <message>
+        <location filename="../plugin.py" line="98"/>
+        <source>About...</source>
+        <translation>Sobre...</translation>
+    </message>
+    <message>
+        <location filename="../plugin.py" line="150"/>
+        <source>{} - About</source>
+        <translation>{} - Sobre</translation>
     </message>
 </context>
 <context>
     <name>PolygonClickMapTool</name>
     <message>
-        <location filename="../polygonclickmap.py" line="427"/>
+        <location filename="../polygonclickmap.py" line="425"/>
         <source>Missing raster layer visible in Map</source>
         <translation>Faltando camada de imagem visível no Mapa</translation>
     </message>
     <message>
-        <location filename="../polygonclickmap.py" line="468"/>
+        <location filename="../polygonclickmap.py" line="466"/>
         <source>Missing polygon layer to receive</source>
         <translation>Faltando camada de polígonos para receber</translation>
     </message>
     <message>
-        <location filename="../polygonclickmap.py" line="539"/>
+        <location filename="../polygonclickmap.py" line="537"/>
         <source>Polygonize - Missing features</source>
         <translation>Poligonalização - Faltando feições</translation>
     </message>
     <message>
-        <location filename="../polygonclickmap.py" line="541"/>
+        <location filename="../polygonclickmap.py" line="539"/>
         <source>Polygonize - {} features added</source>
         <translation>Poligonalização - {} feições adicionadas</translation>
     </message>
     <message>
-        <location filename="../polygonclickmap.py" line="498"/>
+        <location filename="../polygonclickmap.py" line="496"/>
         <source>Current layer is</source>
         <translation>Camada atual é</translation>
     </message>
     <message>
-        <location filename="../polygonclickmap.py" line="635"/>
+        <location filename="../polygonclickmap.py" line="633"/>
         <source>images</source>
         <translation>imagens</translation>
     </message>
     <message>
-        <location filename="../polygonclickmap.py" line="533"/>
+        <location filename="../polygonclickmap.py" line="531"/>
         <source>Add features from images to</source>
         <translation>Adicionar feições a partir das imagens para</translation>
     </message>
     <message>
-        <location filename="../polygonclickmap.py" line="547"/>
+        <location filename="../polygonclickmap.py" line="545"/>
         <source>Delete {} images</source>
         <translation>Deletado {} imagens</translation>
     </message>
     <message>
-        <location filename="../polygonclickmap.py" line="601"/>
+        <location filename="../polygonclickmap.py" line="599"/>
         <source>{} images</source>
         <translation>{} imagens</translation>
     </message>
     <message>
-        <location filename="../polygonclickmap.py" line="605"/>
+        <location filename="../polygonclickmap.py" line="603"/>
         <source>Treshold</source>
         <translation>Tolerância</translation>
     </message>
     <message>
-        <location filename="../polygonclickmap.py" line="607"/>
+        <location filename="../polygonclickmap.py" line="605"/>
         <source>(pixel RGB)</source>
         <translation>(pixel RGB)</translation>
     </message>
     <message>
-        <location filename="../polygonclickmap.py" line="646"/>
+        <location filename="../polygonclickmap.py" line="644"/>
         <source>Canceled by user</source>
         <translation>Cancelado pelo usuário</translation>
     </message>
     <message>
-        <location filename="../polygonclickmap.py" line="638"/>
+        <location filename="../polygonclickmap.py" line="636"/>
         <source>{} - Last image added {} pixels</source>
         <translation>{} - Ultima imagem adicionada {} pixeis</translation>
     </message>
     <message>
-        <location filename="../polygonclickmap.py" line="641"/>
+        <location filename="../polygonclickmap.py" line="639"/>
         <source>{} - Not added images( no pixels found)</source>
         <translation>{} - Nao foi adicionada imagens( não foi encontrado pixeis)</translation>
     </message>
