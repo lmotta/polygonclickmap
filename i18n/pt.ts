@@ -4,49 +4,54 @@
 <context>
     <name>DialogSetup</name>
     <message>
-        <location filename="../dialog_setup.py" line="101"/>
+        <location filename="../dialog_setup.py" line="102"/>
         <source>Fields</source>
         <translation>Campos</translation>
     </message>
     <message>
-        <location filename="../dialog_setup.py" line="140"/>
+        <location filename="../dialog_setup.py" line="141"/>
         <source>Invalid CRS(need be projected)</source>
         <translation>Inválido SCR(precisa ser projetado)</translation>
     </message>
     <message>
-        <location filename="../dialog_setup.py" line="144"/>
+        <location filename="../dialog_setup.py" line="145"/>
         <source>Layer: {}</source>
         <translation>Camada: {}</translation>
     </message>
     <message>
-        <location filename="../dialog_setup.py" line="187"/>
+        <location filename="../dialog_setup.py" line="190"/>
         <source>Metadata</source>
         <translation>Metadado</translation>
     </message>
     <message>
-        <location filename="../dialog_setup.py" line="193"/>
+        <location filename="../dialog_setup.py" line="196"/>
         <source>Field name:</source>
         <translation>Nome do campo:</translation>
     </message>
     <message>
         <location filename="../dialog_setup.py" line="218"/>
         <source>Virtual area(ha)</source>
-        <translation>Área virtual(ha)</translation>
+        <translation type="obsolete">Área virtual(ha)</translation>
     </message>
     <message>
-        <location filename="../dialog_setup.py" line="250"/>
+        <location filename="../dialog_setup.py" line="255"/>
         <source>Metadata field is empty. Create a text field in layer.</source>
         <translation>Campo de metadado está vazio. Crie um campo do tipo texto na camada.</translation>
     </message>
     <message>
-        <location filename="../dialog_setup.py" line="268"/>
+        <location filename="../dialog_setup.py" line="273"/>
         <source>Virtual area is empty</source>
         <translation>Área virtual está  vazia</translation>
     </message>
     <message>
-        <location filename="../dialog_setup.py" line="104"/>
+        <location filename="../dialog_setup.py" line="105"/>
         <source>Adjusts border</source>
         <translation>Ajustar a borda</translation>
+    </message>
+    <message>
+        <location filename="../dialog_setup.py" line="209"/>
+        <source>Virtual area ({}^2)</source>
+        <translation>Área virtual area ({}^2)</translation>
     </message>
 </context>
 <context>
