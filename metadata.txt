@@ -1,9 +1,9 @@
 [general]
 name:Polygon by clicking in map image.
-description:Plugin tool for create polygon from image shown in map.
-about:From the click in map, the tool create automatic a polygon,
-      for editabled layer, using the threshold define when drag the tool.
-      If the drag is to right or up, the threshold increases, otherwise it decreases.
+description:Plugin tool for create polygon from image on map.
+about:From the click on the map, the tool automatically creates a polygon on the current editable layer.
+     <b>The Tool is active when the current layer is a polygon type and editable.</b>
+     Dependence: SciPy(https://www.scipy.org/install.html). The QGIS install SciPy for Mac and Windows
 version:0.1
 qgisMinimumVersion:3.16
 
@@ -20,8 +20,8 @@ repository:https://github.com/lmotta/polygonclickmap
 
 icon:./resources/polygonclickmap.svg
 
-experimental:True
+experimental:False
 deprecated:False
 
-changelog:0.1(2021-07-01)
+changelog:0.1(2021-08-28)
   Start of plugin
