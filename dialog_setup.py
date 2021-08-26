@@ -103,8 +103,8 @@ class DialogSetup(QDialog):
         gpbFields.setLayout( lytFields )
         lytMain.addWidget( gpbFields )
         self.chkAdjustBorder = QCheckBox( self.tr('Adjusts border') )
-        isChecked = self.layer.customProperty( keyAdjustsBorder, 0 )
-        self.chkAdjustBorder.setChecked( isChecked )            
+        isChecked = self.layer.customProperty( keyAdjustsBorder, False )
+        self.chkAdjustBorder.setChecked( isChecked )
         lytMain.addWidget( self.chkAdjustBorder )
         btnBox = buttonOkCancel()
         btnBox.accepted.connect( self.accept )
@@ -260,7 +260,7 @@ class DialogSetup(QDialog):
             self.layer.removeCustomProperty( self.keyMetadata )
         # Ajusts border
         isChecked = self.chkAdjustBorder.isChecked()
-        self.layer.setCustomProperty( self.keyAdjustsBorder, int( isChecked ) )
+        self.layer.setCustomProperty( self.keyAdjustsBorder, isChecked )
         # Area
         if self.gbArea.isChecked():
             crs = self.psCrs.crs()
