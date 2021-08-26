@@ -27,5 +27,5 @@ icon:./resources/polygonclickmap.svg
 experimental:True
 deprecated:False
 
-changelog:0.1(2021-08-28)
-  Start of plugin
+changelog:0.1(2021-08-26)
+  Release of plugin
