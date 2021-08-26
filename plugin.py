@@ -66,7 +66,7 @@ class PolygonClickMapPlugin(QObject):
         self.toolButton.setMenu( QMenu() )
         self.toolButton.setPopupMode( QToolButton.MenuButtonPopup )
         self.toolBtnAction = self.iface.addToolBarWidget( self.toolButton )
-        self.titleTool = self.tr('Create polygon by clicking on the map. * Only for editable layers.')
+        self.titleTool = self.tr('Create polygon by clicking on the map')
 
         self.editingSignalSlot = lambda layer: {
             layer.editingStarted: self._editingStarted,
@@ -78,10 +78,10 @@ class PolygonClickMapPlugin(QObject):
             self.tool = PolygonClickMapTool( iface, self.pluginName )
 
     def initGui(self):
-        def createAction(icon, title, calback, hasToolTip=False, isCheckable=False):
+        def createAction(icon, title, calback, toolTip=None, isCheckable=False):
             action = QAction( icon, title, self.iface.mainWindow() )
-            if hasToolTip:
-                action.setToolTip( title )
+            if toolTip:
+                action.setToolTip( toolTip )
             action.triggered.connect( calback )
             action.setCheckable( isCheckable )
             self.iface.addPluginToMenu( f"&{self.titleTool}" , action )
@@ -89,7 +89,9 @@ class PolygonClickMapPlugin(QObject):
 
         # Action Tool
         icon = QIcon( os.path.join( os.path.dirname(__file__), 'resources', 'polygonclickmap.svg' ) )
-        self.actions['tool'] = createAction( icon, self.titleTool, self.runTool, True, True )
+        toolTip = self.tr('Only for editable layers.')
+        toolTip = f"{self.titleTool}. *{toolTip}"
+        self.actions['tool'] = createAction( icon, self.titleTool, self.runTool, toolTip, True )
         if EXISTSSCIPY:
             self.tool.setAction( self.actions['tool'] )
         # Action setFields
