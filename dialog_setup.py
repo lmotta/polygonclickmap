@@ -43,7 +43,8 @@ from qgis.PyQt.QtWidgets import (
 from qgis.core import (
     QgsApplication,
     QgsFieldProxyModel, QgsField,
-    QgsCoordinateReferenceSystem
+    QgsCoordinateReferenceSystem,
+    QgsUnitTypes
 )
 from qgis.gui import (
     QgsFieldComboBox,
@@ -87,7 +88,7 @@ class DialogSetup(QDialog):
 
         self.msgBar = QgsMessageBar()
 
-        self.expArea = "area(transform($geometry,layer_property(@layer_id,'crs'),'{}'))/10000"
+        self.expArea = "area(transform($geometry,layer_property(@layer_id,'crs'),'{}'))"
         self.statusArea = self._statusFieldArea( layer ) # { 'exists': True/False } if True: { 'name', 'index', 'crs' }
         
         self.leNameField, self.psCrs, self.cmbFieldsMetadata = None, None, None
@@ -175,6 +176,8 @@ class DialogSetup(QDialog):
 
         @pyqtSlot(QgsCoordinateReferenceSystem)
         def crsChanged(crs):
+            unit = QgsUnitTypes.encodeUnit( crs.mapUnits() )
+            self.gbArea.setTitle( formatTitleArea.format( unit ) )
             if crs.isGeographic():
                 self._messageErrorCrs()
 
@@ -187,7 +190,7 @@ class DialogSetup(QDialog):
         self.gbMetadata = checkableGroupBox( self.tr('Metadata') )
         self.gbMetadata.setLayout( lytMetadata )
         lytMain.addWidget( self.gbMetadata )
-        # Area Ha
+        # Area
         lytArea = QHBoxLayout()
         lytArea.addWidget( labelIconNumber() )
         lytArea.addWidget( QLabel( self.tr('Field name:') ) )
@@ -196,26 +199,28 @@ class DialogSetup(QDialog):
             boldLabel( lbl )
             lytArea.addWidget( lbl )
         else:
-            self.leNameField = QLineEdit('area_ha')
+            self.leNameField = QLineEdit('area')
             regex = QRegExp('[A-Za-z0-9_]+')
             validator = QRegExpValidator( regex )
             self.leNameField.setValidator( validator )
             lytArea.addWidget( self.leNameField )
         lytArea.addItem( QSpacerItem( 10, 10, QSizePolicy.Expanding, QSizePolicy.Minimum ) )
         # CRS
+        formatTitleArea = self.tr('Virtual area ({}^2)')
+        title = formatTitleArea.format('?')
+        self.gbArea = checkableGroupBox( title )
         self.psCrs = projectionSelectionWidget()
+        self.psCrs.crsChanged.connect( crsChanged )
         if self.statusArea['exists']:
             crs = QgsCoordinateReferenceSystem( self.statusArea['crs'] )
             if not crs.isGeographic():
                 self.psCrs.setCrs( crs )
-        self.psCrs.crsChanged.connect( crsChanged )
         lytCrs = QHBoxLayout()
         lytCrs.addWidget( self.psCrs )
         # Area + CRS
         lyt = QVBoxLayout()
         lyt.addLayout( lytArea )
         lyt.addLayout( lytCrs )
-        self.gbArea = checkableGroupBox( self.tr('Virtual area(ha)') )
         self.gbArea.setLayout( lyt )
         lytMain.addWidget( self.gbArea )
 
@@ -256,7 +261,7 @@ class DialogSetup(QDialog):
         # Ajusts border
         isChecked = self.chkAdjustBorder.isChecked()
         self.layer.setCustomProperty( self.keyAdjustsBorder, isChecked )
-        # Area ha
+        # Area
         if self.gbArea.isChecked():
             crs = self.psCrs.crs()
             if not crs.isValid() or crs.isGeographic():
