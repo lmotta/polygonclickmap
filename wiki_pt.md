@@ -1,7 +1,7 @@
 ![Polygon layer](./resources/avatar.jpg "Me")  
 
 # Polygon Click Map Plugin  
-![Plugin](./resources/polygonclickmap.svg "Plugin") ***Polygon Click Map*** makes it easy to create polygon from image in map.  
+![Plugin](./resources/polygonclickmap.svg "Plugin") ***Polygon Click Map*** torna fácil criar polígonos a partir da imagem no mapa.  
 
 O ***Polygon Click Map*** é um plugin do tipo ferramenta que permite obter a delimitação de uma área dentro de uma imagem no mapa.  
 O usuário clicando dentro de uma região, a ferramenta cria automaticamente o limite da região.  

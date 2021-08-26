@@ -553,7 +553,8 @@ class PolygonClickMapTool(QgsMapTool):
         msg = f"{msg} \"{self.layerFlood.name()}\""
         ret = QMessageBox.question( None, self.pluginName, msg, QMessageBox.Yes | QMessageBox.No )
         if ret == QMessageBox.Yes:
-            totalFeats = self.imageFlood.polygonizeFlood( self.layerFlood, self._getMetadata() )
+            hasAdjustsBorder = self.layerFlood.customProperty( self.KEY_ADJUSTSBORDER, False )
+            totalFeats = self.imageFlood.polygonizeFlood( self.layerFlood, self._getMetadata(), hasAdjustsBorder )
             if not totalFeats:
                 msg = self.tr('Polygonize - Missing features')
             else:

@@ -56,6 +56,3 @@ The user clicking inside the region, the tool create automatically the limit of 
 ## Donation is well come.  
 International (only PayPal)
 [<img src="./resources/paypal.png">](https://www.paypal.com/donate?hosted_button_id=C28ATQWT4VTTQ) From Brazil ![Pix](./resources/pix.png "Pix") Key: motta.luiz@gmail
-
-
-
