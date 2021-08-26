@@ -24,7 +24,7 @@ repository:https://github.com/lmotta/polygonclickmap
 
 icon:./resources/polygonclickmap.svg
 
-experimental:True
+experimental:False
 deprecated:False
 
 changelog:0.1(2021-08-26)
