@@ -211,8 +211,8 @@ class ImageFlood(QObject):
         task = QgsTask.fromFunction('PolygonClickImage add move flood', run, on_finished=finished )
         self.taskManager.addTask( task )
         # Debug
-        r = run( task )
-        finished( None, r )
+        # r = run( task )
+        # finished( None, r )
 
     def deleteFloodCanvas(self):
         if not len( self.arrys_flood ):
@@ -290,9 +290,6 @@ class ImageFlood(QObject):
         tran = self.canvasImage.dataset.GetGeoTransform()
         sr = self.canvasImage.dataset.GetSpatialRef()
         ds1 = createDatasetMem( arrayFlood, tran, sr, self.calcFlood.flood_out )
-        if DEBUG:
-            ds_ = gdal.GetDriverByName('GTiff').CreateCopy( FILENAME_FLOOD, ds1 )
-            ds_ = None
         ds2 = gdal.GetDriverByName('GTiff').CreateCopy( self.filenameRasterFlood, ds1 )
         ds1, ds2 = None, None
         rl = QgsRasterLayer( self.filenameRasterFlood, 'raster', 'gdal')
@@ -706,33 +703,3 @@ class PolygonClickMapTool(QgsMapTool):
         if not isOk:
             msg = self.tr('Canceled by user')
             self.msgBar.pushCritical( self.pluginName, msg )
-
-
-def saveShp(geoms, srs):
-    driver = ogr.GetDriverByName('ESRI Shapefile')
-    name = 'flood'
-    filename = f"/home/lmotta/data/work/{name}.shp"
-    if os.path.exists( filename ):
-        driver.DeleteDataSource( filename )
-
-    ds_out = driver.CreateDataSource( filename )
-    layer_out = ds_out.CreateLayer( name, srs=srs, geom_type=ogr.wkbPolygon )
-    field_defn = ogr.FieldDefn('id', ogr.OFTInteger)
-    layer_out.CreateField( field_defn )
-    feat_defn = layer_out.GetLayerDefn()
-    id = 1
-    for geom in geoms:
-        feat_out = ogr.Feature( feat_defn )
-        wkb = geom.asWkb()
-        feat_out.SetGeometry( ogr.CreateGeometryFromWkb( wkb ) )
-        wkb = None
-        feat_out.SetField('id', id)
-        id += 1
-        layer_out.CreateFeature( feat_out )
-        feat_out = None
-    ds_out = None
-
-FILENAME_IMAGE = '/home/lmotta/data/work/AAA_IMAGE.tif'
-FILENAME_ARRAY = '/home/lmotta/data/work/AAA_ARRAY.tif'
-FILENAME_FLOOD = '/home/lmotta/data/work/AAA_FLOOD.tif'
-DEBUG = False
