@@ -144,7 +144,7 @@ class ImageFlood(QObject):
         self.mapItem.enabled = enabled
         self.mapItem.updateCanvas()
 
-    def clearFloodCanvas(self):
+    def removeAllFloodCanvas(self):
         self.arrys_flood *= 0
         self.arrys_flood_delete *= 0
         self._setMapItem( False )
@@ -214,7 +214,7 @@ class ImageFlood(QObject):
         r = run( task )
         finished( None, r )
 
-    def deleteFlood(self):
+    def deleteFloodCanvas(self):
         if not len( self.arrys_flood ):
             return False
         self.arrys_flood_delete.append( self.arrys_flood.pop() )
@@ -339,6 +339,7 @@ class ImageFlood(QObject):
         if self.taskCreateFlood:
             self.taskCreateFlood.cancel()
 
+
 class PolygonClickMapTool(QgsMapTool):
     KEY_METADATA = 'PolygonClickMapTool_metadata'
     KEY_ADJUSTSBORDER = 'PolygonClickMapTool_adjusts_border'
@@ -459,7 +460,7 @@ class PolygonClickMapTool(QgsMapTool):
 
     def keyReleaseEvent(self, e):
         key = e.key()
-        if not key in( Qt.Key_D, Qt.Key_U, Qt.Key_H, Qt.Key_F, Qt.Key_P, Qt.Key_C ): # Delete, Undo, Help, Fill, Polygonize, Clear
+        if not key in( Qt.Key_D, Qt.Key_U, Qt.Key_H, Qt.Key_F, Qt.Key_P, Qt.Key_R ):
             return
 
         if e.key() == Qt.Key_H:
@@ -467,7 +468,7 @@ class PolygonClickMapTool(QgsMapTool):
             return
 
         if e.key() == Qt.Key_D:
-            if self.imageFlood.deleteFlood():
+            if self.imageFlood.deleteFloodCanvas():
                 self._setTextMessage(f"{self.imageFlood.totalFlood()} images")
             return
 
@@ -478,7 +479,9 @@ class PolygonClickMapTool(QgsMapTool):
 
         if e.key() == Qt.Key_F:
             if self.imageFlood.fillHolesFlood():
-                self._setTextMessage(f"remove holes - {self.imageFlood.totalFlood()} images")
+                msg = self.tr('remove holes - {} images')
+                msg = msg.format( self.imageFlood.totalFlood() )
+                self._setTextMessage( msg )
             return
 
         if e.key() == Qt.Key_P:
@@ -501,16 +504,19 @@ class PolygonClickMapTool(QgsMapTool):
             self._setTextMessage( msg )
             return
 
-        if e.key() == Qt.Key_C:
+        if e.key() == Qt.Key_R:
             total = self.imageFlood.totalFlood() 
             if not total:
                 return
 
-            msg = f"Clear {total} images?"
+            msg = self.tr('Remove all images ({})?')
+            msg = msg.format( total )
             ret = QMessageBox.question(None, self.pluginName, msg, QMessageBox.Yes | QMessageBox.No, QMessageBox.No )
             if ret == QMessageBox.Yes:
-                self.imageFlood.clearFloodCanvas()
-                self._setTextMessage(f"Delete {total} images")
+                self.imageFlood.removeAllFloodCanvas()
+                msg = 'Delete {} images'
+                msg= msg.format( total )
+                self._setTextMessage( msg )
             return
 
     def setLayerFlood(self, layer):
@@ -563,7 +569,7 @@ class PolygonClickMapTool(QgsMapTool):
             self._setTextMessage( msg )
             return
 
-        self.imageFlood.clearFloodCanvas()
+        self.imageFlood.removeAllFloodCanvas()
         msg = self.tr('Delete {} images')
         msg = msg.format( totalImages )
         self._setTextMessage( msg )
@@ -594,7 +600,7 @@ class PolygonClickMapTool(QgsMapTool):
          . Show or hide: Use right botton of mouse.
          . Delete the last image: D key.
          . Undo: U Key.
-         . Clear: C Key
+         . Remove all images: R Key
          . Fill holes: F Key.
          . Poligonize: P Key. *** Create polygon from image ***
 
@@ -631,7 +637,7 @@ class PolygonClickMapTool(QgsMapTool):
             return
 
         if self.layerFlood and self.layerFlood.id() in layerIds:
-            self.imageFlood.clearFloodCanvas()
+            self.imageFlood.removeAllFloodCanvas()
             self.layerFlood = None
 
     @pyqtSlot()

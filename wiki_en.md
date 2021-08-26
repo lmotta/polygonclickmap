@@ -49,7 +49,7 @@ The user clicking inside the region, the tool create automatically the limit of 
     * D: Delete the last region.
     * U: Undoing the last deletion.
     * F: Fill holes inside the regions.
-    * C: Clear regions.
+    * R: Remove all regions.
     * P: Poligonize regions. * Create the polygons.
     * H: Help,press and keep hold for reading.
     

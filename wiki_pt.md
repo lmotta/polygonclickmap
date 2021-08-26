@@ -49,7 +49,7 @@ O usuário clicando dentro de uma região, a ferramenta cria automaticamente o l
     * D: Deleta a última região.
     * U: Desfaz a última deleção.
     * F: Preenche os buracos dentro das regiões.
-    * C: Apaga as regiões.
+    * R: Remove todas as regiões.
     * P: Poligonaliza as regions. * Criação dos polígonos.
     * H: Ajuda, pressiona e mantenha pressionado para lêr..
     
