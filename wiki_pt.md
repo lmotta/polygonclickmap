@@ -45,13 +45,15 @@ O usuário clicando dentro de uma região, a ferramenta cria automaticamente o l
   * Com o botão direito do mouse, pode mostrar ou ocultar as regiões.  
   ![Tool right](./resources_wiki/tool_right.gif "Tool right")  
 
-  * Keyboard keys:
+  * Teclas do teclado:
     * D: Deleta a última região.
     * U: Desfaz a última deleção.
-    * F: Preenche os buracos dentro das regiões.
+    * F: Preenche os buracos dentro da região.
+    ![Key F](./resources_wiki/key_f.gif "Key F")
     * R: Remove todas as regiões.
     * P: Poligonaliza as regions. * Criação dos polígonos.
-    * H: Ajuda, pressiona e mantenha pressionado para lêr..
+    ![Key P](./resources_wiki/key_p.gif "Key P")
+    * H: Ajuda, pressiona e mantenha pressionado para lêr.
     
 ## Doações são bem vindas.  
 Internacional (apenas PayPal)

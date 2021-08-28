@@ -41,18 +41,20 @@ The user clicking inside the region, the tool create automatically the limit of 
   ![Tool one click](./resources_wiki/tool_one_click.gif "Tool one click")
   * New regions can be do clicking in the others places of the image.
   * Can change the threshold while creating the region, clicking and dragging with mouse. Right or up, the threshold increases, otherwise, the threshold decreases.  
-  ![Tool drag](./resources_wiki/tool_drag.gif "Tool drag")
+  c
   * With the right mouse button, can hide or show the regions.  
   ![Tool right](./resources_wiki/tool_right.gif "Tool right")  
 
   * Keyboard keys:
     * D: Delete the last region.
     * U: Undoing the last deletion.
-    * F: Fill holes inside the regions.
+    * F: Fill holes inside the region.    
+    ![Key F](./resources_wiki/key_f.gif "Key F")    
     * R: Remove all regions.
     * P: Poligonize regions. * Create the polygons.
+    ![Key P](./resources_wiki/key_p.gif "Key P")
     * H: Help,press and keep hold for reading.
     
 ## Donation is well come.  
 International (only PayPal)
-[<img src="./resources/paypal.png">](https://www.paypal.com/donate?hosted_button_id=C28ATQWT4VTTQ) From Brazil ![Pix](./resources/pix.png "Pix") Key: motta.luiz@gmail
+[<img src="./resources/key_f.png">](https://www.paypal.com/donate?hosted_button_id=C28ATQWT4VTTQ) From Brazil ![Pix](./resources/pix.png "Pix") Key: motta.luiz@gmail
