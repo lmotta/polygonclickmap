@@ -33,6 +33,7 @@ from qgis.PyQt.QtWidgets import (
     QMessageBox,
     QStyle
 )
+from qgis.PyQt.QtXml import QDomDocument
 
 from qgis.core import (
     QgsProject, QgsApplication,
@@ -58,6 +59,12 @@ class ImageFlood(QObject):
     finishAddedFloodCanvas = pyqtSignal(bool, int)
     finishAddedMoveFloodCanvas = pyqtSignal(bool, int)
     def __init__(self, mapCanvas):
+        def loadDocStyle(qmlName):
+            filepath = os.path.join( os.path.dirname(__file__), 'resources', qmlName )
+            doc = QDomDocument('qgis')
+            with open( filepath ) as f: doc.setContent( f.read() )
+            return doc
+
         super().__init__()
         self.canvasImage = CanvasImage( mapCanvas )
         self.mapItem = MapItemFlood( mapCanvas )
@@ -74,8 +81,8 @@ class ImageFlood(QObject):
 
         self.rastersCanvas = None # [ RasterLayer inside Canvas]
 
-        self.stylePoint = os.path.join( os.path.dirname(__file__), 'resources', 'pointflood.qml' )
-        self.styleRaster = os.path.join( os.path.dirname(__file__), 'resources', 'rasterflood.qml' )
+        self.stylePoint = loadDocStyle('pointflood.qml')
+        self.styleRaster = loadDocStyle('rasterflood.qml')
 
         self.filenameRasterFlood = '/vsimem/raster_flood.tif'
 
@@ -99,7 +106,7 @@ class ImageFlood(QObject):
             f.setGeometry( QgsGeometry.fromPointXY( pointMap ) )
             prov.addFeature( f )
             l.updateExtents()
-            l.loadNamedStyle( self.stylePoint )
+            l.importNamedStyle( self.stylePoint )
             return l
 
         self.lyrSeed = createQgsSeedVector()
@@ -294,7 +301,7 @@ class ImageFlood(QObject):
         ds2 = gdal.GetDriverByName('GTiff').CreateCopy( self.filenameRasterFlood, ds1 )
         ds1, ds2 = None, None
         rl = QgsRasterLayer( self.filenameRasterFlood, 'raster', 'gdal')
-        rl.loadNamedStyle( self.styleRaster )
+        rl.importNamedStyle( self.styleRaster )
         return rl
 
     def _finishedFloodCanvas(self, dataResult ):
