@@ -48,7 +48,7 @@ from scipy import ndimage
 
 import os, json
 
-from .utils import MapItemFlood, CanvasImage, CalculateArrayFlood, createDatasetMem, adjustsBorder
+from .utils import MapItemFlood, CanvasImage, CalculateArrayFlood, createDatasetArray, adjustsBorder
 
 from .canvas_anottation import AnnotationCanvas
 
@@ -159,8 +159,6 @@ class ImageFlood(QObject):
             arryFlood, totalPixels = self._createFlood( pointCanvas, threshFlood )
             dataResult = { 'isCanceled': arryFlood is None,  'totalPixels': totalPixels }
             if totalPixels:
-                self.arryFloodMove = arryFlood
-                dataResult['rasterFlood'] = self._rasterFlood( arryFlood )
             return dataResult
 
         self.arryFloodMove = None
@@ -290,7 +288,7 @@ class ImageFlood(QObject):
         args = self.canvasImage.getGeoreference()
         args['array'] = arrayFlood
         args['nodata'] = self.calcFlood.flood_out
-        ds1 = createDatasetMem( **args )
+        ds1 = createDatasetArray( **args )
         ds2 = gdal.GetDriverByName('GTiff').CreateCopy( self.filenameRasterFlood, ds1 )
         ds1, ds2 = None, None
         rl = QgsRasterLayer( self.filenameRasterFlood, 'raster', 'gdal')
