@@ -1,5 +1,5 @@
 [general]
-name:Polygon by clicking in map image.
+name:Polygon by clicking in map image
 description:Plugin tool for create polygon from image on map.
 about:From the click on the map, the tool automatically creates a polygon on the current editable layer.
      <b>The Tool is active when the current layer is a polygon type and editable.</b>
@@ -8,7 +8,7 @@ about:From the click on the map, the tool automatically creates a polygon on the
 
      Documentation: <a href="https://github.com/lmotta/polygonclickmap/wiki/English">english</a> or <a href="https://github.com/lmotta/polygonclickmap/wiki/Portuguese">portuguese</a>.
 
-version:0.1
+version:0.2
 qgisMinimumVersion:3.16
 
 author:Luiz Motta
@@ -27,5 +27,7 @@ icon:./resources/polygonclickmap.svg
 experimental:False
 deprecated:False
 
-changelog:0.1(2021-08-26)
+changelog:0.2(2021-08-31)
+ Improvement using array numpy
+ - 0.1(2021-08-26)
   Release of plugin
