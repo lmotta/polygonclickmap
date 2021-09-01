@@ -159,6 +159,8 @@ class ImageFlood(QObject):
             arryFlood, totalPixels = self._createFlood( pointCanvas, threshFlood )
             dataResult = { 'isCanceled': arryFlood is None,  'totalPixels': totalPixels }
             if totalPixels:
+                self.arryFloodMove = arryFlood
+                dataResult['rasterFlood'] = self._rasterFlood( arryFlood )
             return dataResult
 
         self.arryFloodMove = None
@@ -242,7 +244,7 @@ class ImageFlood(QObject):
             tran = self.canvasImage.dataset.GetGeoTransform()
             srs = self.canvasImage.dataset.GetSpatialRef()
             # Raster
-            dsRaster = createDatasetMem( arrayFlood, tran, srs )
+            dsRaster = createDatasetArray( arrayFlood, tran, srs )
             band = dsRaster.GetRasterBand(1)
             # Vector
             ds = ogr.GetDriverByName('MEMORY').CreateDataSource('memData')

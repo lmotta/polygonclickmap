@@ -264,16 +264,14 @@ class CalculateArrayFlood():
         return False
 
 
-def createDatasetMem(array, geoTransform, spatialRef, nodata=None):
+def createDatasetArray(array, geoTransform, spatialRef, nodata=None):
     ds = gdal_array.OpenArray( array )
     ds.SetGeoTransform( geoTransform )
     ds.SetSpatialRef( spatialRef )
     if nodata:
         for b in range( ds.RasterCount ):
             b.SetNoDataValue( nodata )
-    dsOut = gdal.GetDriverByName('MEM').CreateCopy('', ds )
-    ds = None 
-    return dsOut
+    return ds
 
 def connectSignalSlot(signal, slot):
     """ Connect signal with slot if not connected
