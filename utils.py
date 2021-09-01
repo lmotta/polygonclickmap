@@ -159,6 +159,12 @@ class CanvasImage():
     def changedCanvas(self):
         return not self.extent == self.mapCanvas.extent()
 
+    def getGeoreference(self):
+        return {
+            'geoTransform': self.dataset.GetGeoTransform(),
+            'spatialRef': self.dataset.GetSpatialRef()
+        }
+
 
 class CalculateArrayFlood():
     def __init__(self):
@@ -259,7 +265,7 @@ class CalculateArrayFlood():
 
 
 def createDatasetMem(array, geoTransform, spatialRef, nodata=None):
-    ds = gdal_array.OpenNumPyArray( array, True )
+    ds = gdal_array.OpenArray( array )
     ds.SetGeoTransform( geoTransform )
     ds.SetSpatialRef( spatialRef )
     if nodata:

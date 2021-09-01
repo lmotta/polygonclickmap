@@ -287,9 +287,10 @@ class ImageFlood(QObject):
         return totalFeats
 
     def _rasterFlood(self, arrayFlood):
-        tran = self.canvasImage.dataset.GetGeoTransform()
-        sr = self.canvasImage.dataset.GetSpatialRef()
-        ds1 = createDatasetMem( arrayFlood, tran, sr, self.calcFlood.flood_out )
+        args = self.canvasImage.getGeoreference()
+        args['array'] = arrayFlood
+        args['nodata'] = self.calcFlood.flood_out
+        ds1 = createDatasetMem( **args )
         ds2 = gdal.GetDriverByName('GTiff').CreateCopy( self.filenameRasterFlood, ds1 )
         ds1, ds2 = None, None
         rl = QgsRasterLayer( self.filenameRasterFlood, 'raster', 'gdal')
@@ -327,7 +328,9 @@ class ImageFlood(QObject):
         return result
 
     def _setMapItem(self, existsFlood=True):
-        layers = [] if not existsFlood else [ self._rasterFlood( self._reduceArrysFlood() ) ]
+        layers = []
+        if existsFlood:
+            layers.append( self._rasterFlood( self._reduceArrysFlood() )  )
         self.mapItem.setLayers( layers )
         self.mapItem.updateCanvas()
 
