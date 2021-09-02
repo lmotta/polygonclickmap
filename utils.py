@@ -41,12 +41,12 @@ from qgis.gui import QgsMapCanvasItem
 from osgeo import gdal, gdal_array, osr
 
 
-class MapItemFlood(QgsMapCanvasItem):
+class MapItemLayers(QgsMapCanvasItem):
     def __init__(self, mapCanvas):
         super().__init__( mapCanvas )
         self.mapCanvas = mapCanvas
-        self.layers = []
         self.enabled = True
+        self.layers = []
 
     def paint(self, painter, *args): # NEED *args for   WINDOWS!
         def finished():
@@ -55,8 +55,9 @@ class MapItemFlood(QgsMapCanvasItem):
                 image = image.scaled( image.width() / 3, image.height() / 3 )
                 image = image.convertToFormat( QImage.Format_Indexed8, Qt.OrderedDither | Qt.OrderedAlphaDither )
             painter.drawImage( image.rect(), image )
+            job.finished.disconnect( finished) 
 
-        if not self.enabled or len( self.layers ) == 0:
+        if not ( self.enabled and len( self.layers ) ):
             return
 
         settings = QgsMapSettings( self.mapCanvas.mapSettings() )
@@ -78,9 +79,9 @@ class CanvasImage():
         self.project = QgsProject.instance()
         self.root = self.project.layerTreeRoot()
         self.mapCanvas = canvas
-        # Set by process
+        # Set by process.finished
         self.extent = None
-        self.dataset = None # set by process.finished
+        self.dataset = None
 
     def rasterLayers(self):
         """
@@ -98,22 +99,15 @@ class CanvasImage():
         extent = self.mapCanvas.extent()
         ct = QgsCoordinateTransform()
         ct.setDestinationCrs( self.project.crs() )
-        layersCanvas = [] # [ QgsRasterLayer ]
-        for layer in layers:
-            extLayer = getExtent( layer, ct )
-            if extent.intersects( extLayer ):
-                layersCanvas.append( layer )
-        return layersCanvas
+        return  [ layer for layer in layers if extent.intersects( getExtent( layer, ct ) ) ] # [ QgsRasterLayer ]
 
     def process(self, rasters):
         def finished():
             def createDataset(image):
                 def setGeoreference(ds):
-                    #
-                    extent = self.mapCanvas.extent()
                     imgWidth, imgHeight = image.width(), image.height()
-                    resX, resY = extent.width() / imgWidth, extent.height() / imgHeight
-                    geoTrans = ( extent.xMinimum(), resX, 0.0, extent.yMaximum(), 0.0, -1 * resY )
+                    resX, resY = self.extent.width() / imgWidth, self.extent.height() / imgHeight
+                    geoTrans = ( self.extent.xMinimum(), resX, 0.0, self.extent.yMaximum(), 0.0, -1 * resY )
                     ds.SetGeoTransform( geoTrans )
                     # 
                     crs = self.mapCanvas.mapSettings().destinationCrs()
@@ -143,11 +137,11 @@ class CanvasImage():
                 image = image.scaled( image.width() / 3, image.height() / 3 )
                 image = image.convertToFormat( QImage.Format_Indexed8, Qt.OrderedDither | Qt.OrderedAlphaDither )
 
+            self.extent = self.mapCanvas.extent()
             self.dataset = createDataset( image )
 
         self.dataset = None
-        self.extent = self.mapCanvas.extent()
-        
+
         settings = QgsMapSettings( self.mapCanvas.mapSettings() )
         settings.setBackgroundColor( QColor( Qt.transparent ) )
         settings.setLayers( rasters )

@@ -49,7 +49,7 @@ from scipy import ndimage
 
 import os, json
 
-from .utils import MapItemFlood, CanvasImage, CalculateArrayFlood, createDatasetArray, adjustsBorder
+from .utils import MapItemLayers, CanvasImage, CalculateArrayFlood, createDatasetArray, adjustsBorder
 
 from .canvas_anottation import AnnotationCanvas
 
@@ -67,7 +67,7 @@ class ImageFlood(QObject):
 
         super().__init__()
         self.canvasImage = CanvasImage( mapCanvas )
-        self.mapItem = MapItemFlood( mapCanvas )
+        self.mapItem = MapItemLayers( mapCanvas )
         self.calcFlood = CalculateArrayFlood()
 
         self.taskManager = QgsApplication.taskManager()
