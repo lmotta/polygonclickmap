@@ -49,7 +49,7 @@ from scipy import ndimage
 
 import os, json
 
-from .utils import MapItemLayers, CanvasImage, CalculateArrayFlood, createDatasetArray, adjustsBorder
+from .utils import MapItemLayers, CanvasArrayRGB, CalculateArrayFlood, createDatasetImageFromArray, adjustsBorder
 
 from .canvas_anottation import AnnotationCanvas
 
@@ -66,7 +66,7 @@ class ImageFlood(QObject):
             return doc
 
         super().__init__()
-        self.canvasImage = CanvasImage( mapCanvas )
+        self.canvasArray = CanvasArrayRGB( mapCanvas )
         self.mapItem = MapItemLayers( mapCanvas )
         self.calcFlood = CalculateArrayFlood()
 
@@ -90,7 +90,7 @@ class ImageFlood(QObject):
         self.smooth_offset  = 0.25
 
     def __del__(self):
-        self.canvasImage.dataset = None
+        self.canvasArray.array = None
         try:
             gdal.Unlink( self.filenameRasterFlood )
         except:
@@ -114,17 +114,17 @@ class ImageFlood(QObject):
     def updateCanvasImage(self):
         self.arrys_flood *= 0
         self.arrys_flood_delete *= 0
-        self.canvasImage.process( self.rastersCanvas )
-        if not self.canvasImage.dataset:
+        self.canvasArray.process( self.rastersCanvas )
+        if self.canvasArray.array is None:
             raise TypeError("Error created image from canvas. Check exists raster layer visible")
-        if not self.calcFlood.setFloodValue( self.canvasImage.dataset ):
+        if not self.calcFlood.setFloodValue( self.canvasArray.array ):
             raise TypeError("Impossible define value of seed")
 
     def getRasterCanvas(self):
-        return self.canvasImage.rasterLayers()
+        return self.canvasArray.rasterLayers()
 
     def changedCanvas(self):
-        return self.canvasImage.changedCanvas()
+        return self.canvasArray.changedCanvas()
 
     def calculateThreshold(self, point1, point2):
         return self.calcFlood.getThresholdFlood( point1, point2 )
@@ -248,14 +248,14 @@ class ImageFlood(QObject):
 
     def polygonizeFlood(self, layerFlood, metadata, hasAdjustsBorder):
         def polygonizeFlood(arrayFlood):
-            tran = self.canvasImage.dataset.GetGeoTransform()
-            srs = self.canvasImage.dataset.GetSpatialRef()
+            args = self.canvasArray.getGeoreference()
+            args['array'] = arrayFlood
             # Raster
-            dsRaster = createDatasetArray( arrayFlood, tran, srs )
+            dsRaster = createDatasetImageFromArray( **args )
             band = dsRaster.GetRasterBand(1)
             # Vector
             ds = ogr.GetDriverByName('MEMORY').CreateDataSource('memData')
-            layer = ds.CreateLayer( name='memLayer', srs=srs, geom_type=ogr.wkbPolygon )
+            layer = ds.CreateLayer( name='memLayer', srs=args['spatialRef'], geom_type=ogr.wkbPolygon )
             gdal.Polygonize( srcBand=band, maskBand=band, outLayer=layer, iPixValField=-1)
             dsRaster = None
             #
@@ -294,10 +294,10 @@ class ImageFlood(QObject):
         return totalFeats
 
     def _rasterFlood(self, arrayFlood):
-        args = self.canvasImage.getGeoreference()
+        args = self.canvasArray.getGeoreference()
         args['array'] = arrayFlood
         args['nodata'] = self.calcFlood.flood_out
-        ds1 = createDatasetArray( **args )
+        ds1 = createDatasetImageFromArray( **args )
         ds2 = gdal.GetDriverByName('GTiff').CreateCopy( self.filenameRasterFlood, ds1 )
         ds1, ds2 = None, None
         rl = QgsRasterLayer( self.filenameRasterFlood, 'raster', 'gdal')
@@ -313,12 +313,9 @@ class ImageFlood(QObject):
         self.taskCreateFlood = None
 
     def _createFlood(self, pointCanvas, threshFlood=None):
-        # Populate Arrays flood
-        arry = self.canvasImage.dataset.ReadAsArray()[:3] # RGBA: NEED Remove Alpha band(255 for all image)
-        seed = ( pointCanvas.x(), pointCanvas.y() )
         args = {
-            'arraySource': arry,
-            'seed': seed,
+            'arraySource': self.canvasArray.array,
+            'seed': ( pointCanvas.x(), pointCanvas.y() ),
             'isCanceled': self.taskCreateFlood.isCanceled
         }
         if not threshFlood is None:

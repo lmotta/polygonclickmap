@@ -40,6 +40,8 @@ from qgis.gui import QgsMapCanvasItem
 
 from osgeo import gdal, gdal_array, osr
 
+import numpy as np
+
 
 class MapItemLayers(QgsMapCanvasItem):
     def __init__(self, mapCanvas):
@@ -73,15 +75,15 @@ class MapItemLayers(QgsMapCanvasItem):
     def setLayers(self, layers):
         self.layers = layers
 
-
-class CanvasImage():
+class CanvasArrayRGB():
     def __init__(self, canvas):
         self.project = QgsProject.instance()
         self.root = self.project.layerTreeRoot()
         self.mapCanvas = canvas
         # Set by process.finished
         self.extent = None
-        self.dataset = None
+        self.georeference = { 'geoTransform': None, 'spatialRef': None } # createDatasetImageFromArray
+        self.array = None
 
     def rasterLayers(self):
         """
@@ -103,44 +105,40 @@ class CanvasImage():
 
     def process(self, rasters):
         def finished():
-            def createDataset(image):
-                def setGeoreference(ds):
-                    imgWidth, imgHeight = image.width(), image.height()
-                    resX, resY = self.extent.width() / imgWidth, self.extent.height() / imgHeight
-                    geoTrans = ( self.extent.xMinimum(), resX, 0.0, self.extent.yMaximum(), 0.0, -1 * resY )
-                    ds.SetGeoTransform( geoTrans )
-                    # 
-                    crs = self.mapCanvas.mapSettings().destinationCrs()
-                    srs = osr.SpatialReference()
-                    srs.ImportFromWkt( crs.toWkt() )
-                    ds.SetSpatialRef( srs )
-                # Copy image to QByteArray
-                ba = QByteArray()
-                buf = QBuffer( ba )
-                buf.open( QIODevice.WriteOnly )
-                image.save( buf, "TIFF", 100 )
-                buf.close()
-                # Create Dataset
-                filename = '/vsimem/mem.tif'
-                gdal.FileFromMemBuffer( filename, ba.data() )
-                ds = gdal.Open( filename )
-                ds_mem = gdal.GetDriverByName('MEM').CreateCopy( '', ds )
-                setGeoreference( ds_mem )
-                ds = None
-                gdal.Unlink( filename )
-                ba = None
-                #
-                return ds_mem
+            def setArray(image):
+                b = image.bits()
+                width, height = image.width(), image.height()
+                bands = 4 # RGBA
+                b.setsize( height * width * bands ) # rows, columns, bands
+                arry = np.frombuffer(b, np.uint8).reshape(( height,  width, bands ) )
+                # arry -> rows, columns, bands => as_image = [1,2,0]
+                as_raster = [2,0,1] # bands, rows, columns
+                arry = np.transpose( arry, as_raster )
+                self.array = arry[:3].copy() # RGBA: NEED Remove Alpha
 
+            def setGeoreference(image, extent):
+                imgWidth, imgHeight = image.width(), image.height()
+                resX, resY = extent.width() / imgWidth, extent.height() / imgHeight
+                transform =  ( extent.xMinimum(), resX, 0.0, extent.yMaximum(), 0.0, -1 * resY )
+
+                crs = self.mapCanvas.mapSettings().destinationCrs()
+                srs = osr.SpatialReference()
+                srs.ImportFromWkt( crs.toWkt() )
+                
+                self.georeference['geoTransform'] = transform
+                self.georeference['spatialRef'] = srs
+                
             image = job.renderedImage()
             if bool( self.mapCanvas.property('retro') ):
                 image = image.scaled( image.width() / 3, image.height() / 3 )
                 image = image.convertToFormat( QImage.Format_Indexed8, Qt.OrderedDither | Qt.OrderedAlphaDither )
 
-            self.extent = self.mapCanvas.extent()
-            self.dataset = createDataset( image )
+            extent = self.mapCanvas.extent()
+            self.extent = extent
+            setGeoreference( image, extent )
+            setArray( image )
 
-        self.dataset = None
+        self.array = None
 
         settings = QgsMapSettings( self.mapCanvas.mapSettings() )
         settings.setBackgroundColor( QColor( Qt.transparent ) )
@@ -154,11 +152,7 @@ class CanvasImage():
         return not self.extent == self.mapCanvas.extent()
 
     def getGeoreference(self):
-        return {
-            'geoTransform': self.dataset.GetGeoTransform(),
-            'spatialRef': self.dataset.GetSpatialRef()
-        }
-
+        return self.georeference.copy() # shallow copy
 
 class CalculateArrayFlood():
     def __init__(self):
@@ -249,16 +243,18 @@ class CalculateArrayFlood():
             threshFlood = self.maxValue
         return threshFlood
 
-    def setFloodValue(self, dsImage):
-        arry = dsImage.ReadAsArray()
+    def setFloodValue(self, array):
         for v in range(1, 256):
-            if arry[arry == v].sum() == 0:
+            if array[array == v].sum() == 0:
                 self.flood_value = v
                 return True
         return False
 
+    def setFloodValueFromDatasetImage(self, dsImage):
+        return self.setFloodValue( dsImage.ReadAsArray() )
 
-def createDatasetArray(array, geoTransform, spatialRef, nodata=None):
+
+def createDatasetImageFromArray(array, geoTransform, spatialRef, nodata=None):
     ds = gdal_array.OpenArray( array )
     ds.SetGeoTransform( geoTransform )
     ds.SetSpatialRef( spatialRef )
