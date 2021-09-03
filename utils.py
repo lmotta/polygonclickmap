@@ -162,17 +162,17 @@ class CalculateArrayFlood():
         self.minValue, self.maxValue = 1, 254
         self.threshFlood = 50 # 0 .. 255
         self.threshSieve = 100
-        self.coordinatesPixels = self._coordinatesAdjacent4pixels
+        self.coordinatesAdjacentPixels = self._coordinatesAdjacent4Pixels
 
-    def _coordinatesAdjacent4pixels(self, row, col):
+    def _coordinatesAdjacent4Pixels(self, row, col):
         coords = []
         for d in (-1, 1):
             coords.append( ( row+d, col ) )
             coords.append( ( row, col+d ) )
         return coords
 
-    def _coordinateAdjacent8pixels(self, row, col):
-        coords = self._coordinatesAdjacent4pixels( row, col )
+    def _coordinateAdjacent8Pixels(self, row, col):
+        coords = self._coordinatesAdjacent4Pixels( row, col )
         for d in (-1, 1):
             coords.append( ( row+d, col+d ) )
             coords.append( ( row-d, col+d ) )
@@ -241,7 +241,7 @@ class CalculateArrayFlood():
                 for ( row, col ) in edge:
                     if isCanceled():
                         return None
-                    for (s, t) in self.coordinatesPixels( row, col ):
+                    for (s, t) in self.coordinatesAdjacentPixels( row, col ):
                         # If already processed, or if a coordinate is negative, or a coordinate greather image limit, skip
                         if (s, t) in full_edge or s < 0 or t < 0 or s > (rows-1) or t > (cols-1):
                             continue
@@ -283,6 +283,9 @@ class CalculateArrayFlood():
         if threshFlood > self.maxValue:
             threshFlood = self.maxValue
         return threshFlood
+
+    def setCoordinatesAdjacentPixels(self, is8pixels):
+        self.coordinatesAdjacentPixels = self._coordinateAdjacent8Pixels if is8pixels else self._coordinatesAdjacent4Pixels
 
     def setFloodValue(self, array):
         for v in range(1, 256):

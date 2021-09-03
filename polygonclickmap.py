@@ -138,6 +138,9 @@ class ImageFlood(QObject):
     def thresholdMinMax(self):
         return self.calcFlood.minValue, self.calcFlood.maxValue
 
+    def setCoordinatesAdjacentFlood(self, is8pixel):
+        self.calcFlood.setCoordinatesAdjacentPixels( is8pixel )
+
     def totalFlood(self):
         return len( self.arrys_flood )
  
@@ -349,6 +352,7 @@ class ImageFlood(QObject):
 class PolygonClickMapTool(QgsMapTool):
     KEY_METADATA = 'PolygonClickMapTool_metadata'
     KEY_ADJUSTSBORDER = 'PolygonClickMapTool_adjusts_border'
+    KEY_ADJACENTPIXELS = 'PolygonClickMapTool_adjacent_pixels'
     def __init__(self, iface, pluginName):
         self.mapCanvas = iface.mapCanvas()
         self.pluginName = pluginName
@@ -418,6 +422,9 @@ class PolygonClickMapTool(QgsMapTool):
             self.imageFlood.updateCanvasImage()
 
         self.dtMoveFloodIni = QDateTime.currentDateTime()
+
+        hasAdjacentPixels = self.layerFlood.customProperty( self.KEY_ADJACENTPIXELS, False )
+        self.imageFlood.setCoordinatesAdjacentFlood( hasAdjacentPixels ) # True 8 pixels
 
     def canvasMoveEvent(self, e):
         # Always e.button() = 0

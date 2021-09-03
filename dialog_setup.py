@@ -58,7 +58,6 @@ def boldLabel(lbl):
     font.setBold( True )
     lbl.setFont( font )
 
-
 def buttonOkCancel():
     def changeDefault(standardButton, default):
         btn = btnBox.button( standardButton )
@@ -70,21 +69,27 @@ def buttonOkCancel():
     changeDefault( QDialogButtonBox.Cancel, True )
     return btnBox
 
-
 def checkableGroupBox(title):
     gb = QGroupBox( title )
     gb.setCheckable( True )
     gb.setChecked( True )
     return gb
 
+def checkBoxLayerProperty(title, layer, keyProperty):
+    wgt = QCheckBox( title )
+    isChecked = int( layer.customProperty( keyProperty, '0' ) )
+    wgt.setChecked( isChecked )
+    return wgt
+
 
 class DialogSetup(QDialog):
-    def __init__(self, parent, title, layer, keyMetadata, keyAdjustsBorder):
+    def __init__(self, parent, title, layer, keys):
         super().__init__( parent )
         self.title = title
         self.layer = layer
-        self.keyMetadata = keyMetadata
-        self.keyAdjustsBorder = keyAdjustsBorder
+        self.keyMetadata = keys['metadata']
+        self.keyAdjustsBorder = keys['adjusts_border']
+        self.keyAdjacentPixels = keys['adjacent_pixels']
 
         self.msgBar = QgsMessageBar()
 
@@ -102,9 +107,11 @@ class DialogSetup(QDialog):
         gpbFields = QGroupBox( self.tr('Fields') )
         gpbFields.setLayout( lytFields )
         lytMain.addWidget( gpbFields )
-        self.chkAdjustBorder = QCheckBox( self.tr('Adjusts border') )
-        isChecked = int( self.layer.customProperty( keyAdjustsBorder, '0' ) )
-        self.chkAdjustBorder.setChecked( isChecked )
+        title = self.tr('Region growth with pixels diagonal (8 pixels)')
+        self.chkAdjacent8pixels = checkBoxLayerProperty( title, layer, self.keyAdjacentPixels )
+        lytMain.addWidget( self.chkAdjacent8pixels )
+        title = self.tr('Adjusts border')
+        self.chkAdjustBorder = checkBoxLayerProperty( title, layer, self.keyAdjustsBorder )
         lytMain.addWidget( self.chkAdjustBorder )
         btnBox = buttonOkCancel()
         btnBox.accepted.connect( self.accept )
@@ -258,6 +265,9 @@ class DialogSetup(QDialog):
             self.layer.setCustomProperty( self.keyMetadata, currentField )
         else:
             self.layer.removeCustomProperty( self.keyMetadata )
+        # Adjacent pixels
+        isChecked = self.chkAdjacent8pixels.isChecked()
+        self.layer.setCustomProperty( self.keyAdjacentPixels, int(isChecked) )
         # Ajusts border
         isChecked = self.chkAdjustBorder.isChecked()
         self.layer.setCustomProperty( self.keyAdjustsBorder, int(isChecked) )

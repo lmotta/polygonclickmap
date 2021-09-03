@@ -137,7 +137,17 @@ class PolygonClickMapPlugin(QObject):
     @pyqtSlot(bool)
     def runSetup(self, checked):
         layer = self.iface.activeLayer()
-        dlg = DialogSetup( self.iface.mainWindow(), self.pluginName, layer, PolygonClickMapTool.KEY_METADATA, PolygonClickMapTool.KEY_ADJUSTSBORDER )
+        args = (
+            self.iface.mainWindow(),
+            self.pluginName,
+            layer,
+            {
+                'metadata': PolygonClickMapTool.KEY_METADATA,
+                'adjacent_pixels': PolygonClickMapTool.KEY_ADJACENTPIXELS,
+                'adjusts_border': PolygonClickMapTool.KEY_ADJUSTSBORDER
+            }
+        )
+        dlg = DialogSetup( *args )
         if self.currentCrs:
             dlg.setCurrentCrs( self.currentCrs )
         if dlg.exec_() == dlg.Accepted:
