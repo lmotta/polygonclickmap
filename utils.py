@@ -163,7 +163,7 @@ class CalculateArrayFlood():
         self.threshFlood = 50 # 0 .. 255
         self.threshSieve = 100
 
-    def get(self, arraySource, seed, isCanceled, threshould=None):
+    def get(self, arraySource, seed, isCanceled, arrayFloodBack=None, threshould=None):
         def sieve(arry):
             ds = gdal_array.OpenArray( arry ) # Read only
             dsSieve = gdal.GetDriverByName('MEM').CreateCopy('', ds )
@@ -183,22 +183,42 @@ class CalculateArrayFlood():
             return arry_sieve
 
         def floodfill():
-            # Adaptation from https://github.com/python-pillow/Pillow/ src/PIL/ImageDraw.py 
-            def isSameValue(row, col, value_out):
+            # Adaptation from https://github.com/python-pillow/Pillow/src/PIL/ImageDraw.py 
+            def getValueFloodBack():
+                for v in range(self.flood_value+1, 256):
+                    if arraySource[ arraySource == v].sum() == 0:
+                        return v
+                return None
+
+            def isBoundary(row, col):
                 for idx in range( n_bands ):
-                    if abs( value_out[ idx ] - arry_flood[ idx, row, col ].item() ) > thresh:
+                    if not arry_flood[ idx, row, col ].item() == valueFloodBack:
+                        return False
+                return True
+
+            def isSameValue(row, col):
+                for idx in range( n_bands ):
+                    if abs( value_seed[ idx ] - arry_flood[ idx, row, col ].item() ) > thresh:
                         return False
                 return True
             
             arry_flood = arraySource.copy()
             thresh = threshould if threshould else self.threshFlood
+            valueFloodBack = None
+            if not arrayFloodBack is None:
+                bool_FloodBack = ( arrayFloodBack == self.flood_value_color )
+                valueFloodBack = getValueFloodBack()
+                if not valueFloodBack:
+                    raise TypeError('Error calculate value of flood back')
+
             row, col = seed[1], seed[0]
             ( n_bands, rows, cols ) = arry_flood.shape
             value_seed = []
             for idx in range( n_bands ):
-                value_seed.append( arry_flood[ idx, row, col ]  )
+                value_seed.append( arry_flood[ idx, row, col ] )
                 arry_flood[ idx, row, col ] = self.flood_value
-
+                if valueFloodBack:
+                    arry_flood[ idx ][ bool_FloodBack ] = valueFloodBack # Boundary
             edge = { ( row, col ) }
             full_edge = set()
             while edge:
@@ -212,12 +232,18 @@ class CalculateArrayFlood():
                             continue
                         coord = ( s, t )
                         full_edge.add( coord )
-                        if isSameValue( coord[0], coord[1], value_seed):
-                            for idx in range( n_bands ):
-                                arry_flood[ idx, coord[0], coord[1] ] = self.flood_value
+                        if valueFloodBack and isBoundary( coord[0], coord[1] ):
+                            continue
+                        if isSameValue( coord[0], coord[1] ):
+                            arry_flood[ :, coord[0], coord[1] ] = self.flood_value
                             new_edge.add((s, t))
                 full_edge = edge  # discard pixels processed
                 edge = new_edge
+
+            if valueFloodBack:
+                for idx in range( n_bands ):
+                    arry_flood[ idx ][ bool_FloodBack ] = self.flood_out # Remove Boundary
+
             return arry_flood
 
         arry_flood = floodfill()

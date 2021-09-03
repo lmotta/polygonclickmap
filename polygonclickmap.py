@@ -193,10 +193,10 @@ class ImageFlood(QObject):
             return dataResult
 
         task = QgsTask.fromFunction('PolygonClickImage add flood', run, on_finished=finished )
-        self.taskManager.addTask( task )
+        # self.taskManager.addTask( task )
         # Debug
-        # r = run( task )
-        # finished( None, r )
+        r = run( task )
+        finished( None, r )
 
     def addFloodMoveCanvas(self):
         def finished(exception, dataResult):
@@ -318,6 +318,8 @@ class ImageFlood(QObject):
             'seed': ( pointCanvas.x(), pointCanvas.y() ),
             'isCanceled': self.taskCreateFlood.isCanceled
         }
+        if len( self.arrys_flood ):
+            args['arrayFloodBack'] = self._reduceArrysFlood()
         if not threshFlood is None:
             args['threshould'] = threshFlood
         arryFlood = self.calcFlood.get( **args )
