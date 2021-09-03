@@ -29,6 +29,8 @@ The user clicking inside the region, the tool create automatically the limit of 
       * The virtual field with expression that calculate area.
       * Select the projected CRS (linear unit).
       * Create virtual field if the group is selected.
+  * Growth region using diagonal pixels (8 pixels):
+      * If selected, it will use the 8 neighbor pixels for calculus of growth.
   * Adjusts border:
       * If selected, it will adjust the borders between the polygons after poligonize of regions.
   ![Ajusts border](./resources_wiki/ajustborder.gif "Adjusts border")
@@ -53,7 +55,7 @@ The user clicking inside the region, the tool create automatically the limit of 
     * R: Remove all regions.
     * P: Poligonize regions. * Create the polygons.
     ![Key P](./resources_wiki/key_p.gif "Key P")
-    * H: Help,press and keep hold for reading.
+    * H: Help.
     
 ## Donation is well come.  
 International (only PayPal)

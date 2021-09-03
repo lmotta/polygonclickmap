@@ -29,8 +29,10 @@ O usuário clicando dentro de uma região, a ferramenta cria automaticamente o l
       * O campo virtual com a expressão que calcula a área.
       * Selecionar o SCR projetado (unidade linear).
       * Cria o campo virtual se o grupo estiver selecionado.
+  * Região de crescimento usando pixeis na diagonal(8 pixeis):
+      * Se selecionado, irá utilizar os 8 pixeis vizinhos para o cálculo da região.
   * Adjuste de borda:
-      * Se selecionado, irá ser ajustadas as bordas entre os polígonos após a poligonalizaçãop das regiões.
+      * Se selecionado, irá ser ajustadas as bordas entre os polígonos após a poligonalização das regiões.
   ![Ajusts border](./resources_wiki/ajustborder.gif "Adjusts border")
       * O polígono mais recente irá ter suas áreas de sobreposição cortadas, e, os espaços entre as bordas adicionádos a ele.
 
@@ -53,7 +55,7 @@ O usuário clicando dentro de uma região, a ferramenta cria automaticamente o l
     * R: Remove todas as regiões.
     * P: Poligonaliza as regions. * Criação dos polígonos.
     ![Key P](./resources_wiki/key_p.gif "Key P")
-    * H: Ajuda, pressiona e mantenha pressionado para lêr.
+    * H: Ajuda.
     
 ## Doações são bem vindas.  
 Internacional (apenas PayPal)
