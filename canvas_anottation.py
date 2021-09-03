@@ -40,67 +40,30 @@ from qgis.core import (
 
 
 class AnnotationCanvas(QObject):
-    removed = pyqtSignal()
     def __init__(self, mapCanvas):
         super().__init__()
         self.annotationManager = QgsProject.instance().annotationManager()
-        self.annotationManager.annotationAboutToBeRemoved.connect( self.annotationAboutToBeRemoved )
         self.mapCanvas = mapCanvas
         self.symbol = {
-            'fill': {'color': 'white', 'outline_color': 'white'},
+            'fill': {'color': 'white', 'outline_color': 'red'},
             'marker': {'name': 'x', 'color': 'white' },
             'opacity': 0
         }
         #
-        self._create() # Create self.annot
-        self.active = False
-        self.annotationManager = QgsProject.instance().annotationManager()
+        self.annot = None # _create
+        self.text = None
 
     def setText(self, text):
-        def setFrameDocument():
-            td = QTextDocument( text )
-            td.setDefaultFont( QFont('Arial', 14) )
-            self.annot.setFrameOffsetFromReferencePointMm(QPointF(0,0))
-            self.annot.setFrameSize( td.size() )
-            self.annot.setDocument( td )
-
-        if not text: # None or ''
-            self.active = False
-            self.mapCanvas.extentsChanged.disconnect( self.extentsChanged )
-            if self.annot:
-                self.annot.setVisible( False )
-            return
-        #
         self.active = True
-        self.mapCanvas.extentsChanged.connect( self.extentsChanged )
+        self.text = text
         if not self.annot in self.annotationManager.annotations():
             self._create()
             self.annotationManager.addAnnotation( self.annot )
         self._setPosition()
-        setFrameDocument()
-        self.annot.setVisible( True )
 
     def remove(self):
         if self.annot:
-            self.active = False
             self.annotationManager.removeAnnotation( self.annot )
-
-    @pyqtSlot()
-    def extentsChanged(self):
-        if not self.active:
-            return
-
-        if not self.annot in self.annotationManager.annotations():
-            self._create()
-            self.annotationManager.addAnnotation( self.annot )
-        self._setPosition()
-
-    @pyqtSlot('QgsAnnotation*')
-    def annotationAboutToBeRemoved(self, annot):
-        if annot == self.annot:
-            self.annot = None
-            self.active = False
-            self.removed.emit()
 
     def _setPosition(self):
         e = self.mapCanvas.extent()
@@ -114,6 +77,14 @@ class AnnotationCanvas(QObject):
             marker.setOpacity( self.symbol['opacity'] )
             annotation.setMarkerSymbol(  marker )
 
+        def setFrameDocument(annot):
+            td = QTextDocument( self.text )
+            td.setDefaultFont( QFont('Arial', 14) )
+            annot.setFrameOffsetFromReferencePointMm(QPointF(0,0))
+            annot.setFrameSize( td.size() )
+            annot.setDocument( td )
+
         annot = QgsTextAnnotation()
         setFillMarker( annot )
+        setFrameDocument( annot)
         self.annot = annot
