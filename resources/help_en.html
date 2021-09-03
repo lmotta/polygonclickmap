@@ -1,0 +1,35 @@
+<body>
+    <h1>Create polygon by clicking on the map image</h1>
+    <h2>Steps:</h2>
+    <h3>- Creating an Image of growth.</h3>
+    <ul>
+        <li>The tool create a image of growth from the clicked point, seed point, in the map.</li>
+        <li>The growth depends on the threshold used. The RGB value of the seed point is compared with its neighbors,if the difference is smaller then threshold, the image grows.</li>
+        <li>The threshold value is show right side of status bar in QGIS window.</li>
+        <li>Can change the threshold value directly in the value box or by clicking and dragging the mouse.<br>
+        Mouse: moving to the right or up, the treshold increases, otherwise it decreases.</li>
+        <li>Using the mouse, clicking and dragging, the image is changed automatically.<br>
+        Clicking one time, the image is made with value of threshold.</li>
+    </ul>
+    <h3>- Working with Images of Growth.</h3>
+    <ul>
+        <li>Show or hide: Use right botton of mouse.</li>
+        <li>Delete the last image: D key.</li>
+        <li>Undo: U Key.</li>
+        <li>Remove all images: R Key.</li>
+        <li>Fill holes: F Key.</li>
+        <li>Poligonize: P Key. *** Create polygon from image ***</li>
+    </ul>
+    <h2>Menu Setup.</h2>
+    <ul>
+        <li>Metadata: Select the exists field, text type, will be populate with metadata of tool.</li>
+        <li>Virtual area(ha): will be added a expression onto polygon layer for calculate area(ha).</li>
+        <li>Growth region: Mark this option for calculate with 8 neighborhood pixels(diagonal).</li>
+        <li>Adjusts border: Mark this option for adjust border between polygons.</li>
+    </ul>
+    <h2>Menu About.</h2>
+    <ul>
+        <li>Show information about this plugin.</li>
+        <li><b>Donation is most welcome!</b></li>
+    </ul>
+    </body>

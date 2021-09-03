@@ -42,7 +42,6 @@ from qgis.core import (
 class AnnotationCanvas(QObject):
     def __init__(self, mapCanvas):
         super().__init__()
-        self.annotationManager = QgsProject.instance().annotationManager()
         self.mapCanvas = mapCanvas
         self.symbol = {
             'fill': {'color': 'white', 'outline_color': 'red'},
@@ -50,11 +49,11 @@ class AnnotationCanvas(QObject):
             'opacity': 0
         }
         #
+        self.annotationManager = QgsProject.instance().annotationManager()
         self.annot = None # _create
         self.text = None
 
     def setText(self, text):
-        self.active = True
         self.text = text
         if not self.annot in self.annotationManager.annotations():
             self._create()
@@ -64,6 +63,7 @@ class AnnotationCanvas(QObject):
     def remove(self):
         if self.annot:
             self.annotationManager.removeAnnotation( self.annot )
+            self.annot = None
 
     def _setPosition(self):
         e = self.mapCanvas.extent()
@@ -79,7 +79,7 @@ class AnnotationCanvas(QObject):
 
         def setFrameDocument(annot):
             td = QTextDocument( self.text )
-            td.setDefaultFont( QFont('Arial', 14) )
+            td.setDefaultFont( QFont('Noto Sans', 12) )
             annot.setFrameOffsetFromReferencePointMm(QPointF(0,0))
             annot.setFrameSize( td.size() )
             annot.setDocument( td )

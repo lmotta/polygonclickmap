@@ -28,19 +28,21 @@ from qgis.PyQt.QtCore import Qt, QByteArray, QBuffer, QIODevice, pyqtSignal
 from qgis.PyQt.QtGui import QImage, QColor
 
 from qgis.core import (
-    QgsProject,
+    QgsProject, QgsApplication,
     QgsMapLayer, QgsRasterLayer,
     QgsMapSettings, 
     QgsMapRendererParallelJob,
     QgsCoordinateTransform,
     QgsGeometry, QgsPolygon, QgsLineString, QgsPoint,
-    QgsFeature
+    QgsFeature,
+    QgsMessageOutput
 )
 from qgis.gui import QgsMapCanvasItem 
 
 from osgeo import gdal, gdal_array, osr
 
 import numpy as np
+import os
 
 
 class MapItemLayers(QgsMapCanvasItem):
@@ -316,7 +318,6 @@ def memoryRasterLayerFromDataset(dataset, vsimemFile, nameStyle):
     rl.importNamedStyle( nameStyle )
     return rl
 
-
 def connectSignalSlot(signal, slot):
     """ Connect signal with slot if not connected
     :param signal: signal of QObject
@@ -364,3 +365,22 @@ def adjustsBorder(geom, layer):
         if geom.overlaps( g ):
             result = getGeomAjustBorder( result, g )
     return result
+
+def messageOutputHtml(title, prefixHtml, dirHtml):
+    def readFile(filepath):
+        with open(filepath, 'r') as reader:
+            content = reader.read()
+        return content
+
+    dlg = QgsMessageOutput.createMessageOutput()
+    dlg.setTitle( title )
+
+    pathCurrent = os.getcwd()
+    os.chdir( dirHtml )
+    file = f"{prefixHtml}_{QgsApplication.locale()}.html"
+    if not os.path.exists( file):
+        file = f"{prefixHtml}_en.html"
+    content = readFile( file )
+    dlg.setMessage( content, QgsMessageOutput.MessageHtml )
+    dlg.showMessage()
+    os.chdir( pathCurrent )

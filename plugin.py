@@ -31,11 +31,11 @@ from qgis.PyQt.QtCore import QObject, pyqtSlot
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction, QToolButton, QMenu
 
-from qgis.core import QgsProject, QgsApplication, QgsMessageOutput
+from qgis.core import QgsProject, QgsApplication
 
 from .translate import Translate
 
-from .utils import connectSignalSlot
+from .utils import connectSignalSlot, messageOutputHtml
 
 EXISTSSCIPY = True
 # try:
@@ -155,25 +155,14 @@ class PolygonClickMapPlugin(QObject):
 
     @pyqtSlot(bool)
     def runAbout(self, checked):
-        def readFile(filepath):
-            with open(filepath, 'r') as reader:
-                content = reader.read()
-            return content
-
-        dlg = QgsMessageOutput.createMessageOutput()
-        msg = self.tr('{} - About')
-        msg = msg.format( self.pluginName )
-        dlg.setTitle( msg )
-
-        pathCurrent = os.getcwd()
-        os.chdir( os.path.join( os.path.dirname(__file__), 'resources' ) )
-        file = f"about_{QgsApplication.locale()}.html"
-        if not os.path.exists( file):
-            file = f"about_en.html"
-        content = readFile( file )
-        dlg.setMessage( content, QgsMessageOutput.MessageHtml )
-        dlg.showMessage()
-        os.chdir( pathCurrent )
+        title = self.tr('{} - About')
+        title = title.format( self.pluginName )
+        args = {
+            'title': title,
+            'prefixHtml': 'about',
+            'dirHtml': os.path.join( os.path.dirname(__file__), 'resources' )
+        }
+        messageOutputHtml( **args )
 
     @pyqtSlot('QgsMapLayer*')
     def _currentLayerChanged(self, layer):

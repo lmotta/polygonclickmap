@@ -1,0 +1,35 @@
+<body>
+    <h1>Cria polígono clicando no mapa</h1>
+    <h2>Passos:</h2>
+    <h3>- Criando uma imagem de crescimento.</h3>
+    <ul>
+        <li>A ferramenta cria uma imagem de crecimento a partir do ponto clicado, ponto de semente, dentro do mapa.</li>
+        <li>O crescimento depende da tolerância usada. Os valores RGB  do ponto semente é comparado com seus vizinhos, se a diferença é menor do que a tolerância, a imagem cresce.</li>
+        <li>O valor da tolerância é mostrado no lado direito da barra de status da janela do QGIS.</li>
+        <li>Pode trocar o valor da tolerância diretamente dentro da caixa de valor ou clicando e arrastando o mouse.<br>
+            Mouse: movendo para a direita ou acima, a tolerância cresce, caso contrário, diminui.</li>
+        <li>Usando o mouse, clicando e arrastando, a imagem é alterada automaticamente.<br>
+            Clicando uma vez, a imagem é feita com o valor da tolerância.</li>
+    </ul>
+    <h3>- Trabalhando com Imagens de crescimento.</h3>
+    <ul>
+        <li>Mostrar ou ocultar: Usar o botão direito do mouse.</li>
+        <li>Deletar a última imagem: Tecla D.</li>
+        <li>Desfazer: Tecla U.</li>
+        <li>Remover todas as imagens: Tecla R.</li>
+        <li>Preencher buracos: Tecla F.</li>
+        <li>Poligonalizar: Tecla P. *** Cria o polígono a partir da imagem ***</li>
+    </ul>
+    <h2>Menu Configuração.</h2>
+    <ul>
+        <li>Metadado: Seleciona um campo existente, tipo de texto, que irá ser populado com os metadado da ferramenta).</li>
+        <li>Área(ha) virtual: Irá ser adicionada uma expressão dentro da camada de polígono para o cálculo de área (ha).</li>
+        <li>Região de crescimento: Marca essa opção para calcular com os 8 pixeis vizinhos(diagonal).</li>
+        <li>Ajuste de borda: Marca essa opção para ajusta as bordas entre polígonos.</li>
+    </ul>
+    <h2>Menu Sobre.</h2>
+    <ul>
+        <li>Mostra informações sobre esse plugin.</li>
+        <li><b>Doação é muito bem vinda!</b></li>
+    </ul>
+    </body>

@@ -52,10 +52,9 @@ import os, json
 from .utils import (
     MapItemLayers, CanvasArrayRGB, CalculateArrayFlood, 
     datasetImageFromArray, memoryRasterLayerFromDataset,
-    adjustsBorder
+    adjustsBorder,
+    messageOutputHtml
 )
-
-from .canvas_anottation import AnnotationCanvas
 
 
 class ImageFlood(QObject):
@@ -380,9 +379,6 @@ class PolygonClickMapTool(QgsMapTool):
         self.imageFlood.finishAddedFloodCanvas.connect( self._finishAddedFloodCanvas )
         self.imageFlood.finishAddedMoveFloodCanvas.connect( self._finishAddedFloodCanvas )
 
-        self.annotCanvas = AnnotationCanvas( self.mapCanvas )
-        self.textHelp = self._help()
-
         self.hasPressPoint = False
         self.startedMoveFlood = False
         self.dtMoveFloodIni = None
@@ -471,18 +467,13 @@ class PolygonClickMapTool(QgsMapTool):
 
         self.imageFlood.addFloodMoveCanvas()
 
-    def keyPressEvent (self, e):
-        key = e.key()
-        if e.key() == Qt.Key_H:
-            self.annotCanvas.setText( self.textHelp )
-
     def keyReleaseEvent(self, e):
         key = e.key()
         if not key in( Qt.Key_D, Qt.Key_U, Qt.Key_H, Qt.Key_F, Qt.Key_P, Qt.Key_R ):
             return
 
         if e.key() == Qt.Key_H:
-            self.annotCanvas.remove()
+            self._help()
             return
 
         if e.key() == Qt.Key_D:
@@ -599,32 +590,14 @@ class PolygonClickMapTool(QgsMapTool):
         self.spThreshFlood.setValue( treshold )
 
     def _help(self):
-        msg =  self.tr( """*** HELP - {} ***
-        Steps:
-        - Creating an Image of growth.
-         . The tool create a image of growth from the clicked point, seed point, in the map.
-         . The growth depends on the threshold used. The RGB value of the seed point is compared with its neighbors. 
-         . The threshold value is show right side of status bar in QGIS window.
-         . Can change the threshold value directly in the value box or by clicking and dragging the mouse.
-         Mouse: moving to the right or up, the treshold increases, otherwise it decreases.
-         . Using the mouse, clicking and dragging, the image is changed automatically.
-         Clicking one time, the image is made with value of threshold.
-
-        - Working with Images of Growth.
-         . Show or hide: Use right botton of mouse.
-         . Keys: D(Delete the last image), U(Undo), R(Remove all), F(Fill holes),
-           P(Poligonize) *** Create polygon from image ***.
-
-        Menu Setup.
-        . Metadata: Select the exists field, text type, will be populate with metadata of tool.
-        . Virtual area(ha): Will be added a expression onto polygon layer for calculate area(ha).
-        . Region growth: Mark this option for calculate with 8 neighborhood pixels(diagonal).
-        . Adjusts border: Mark this option for adjust border line between polygons.
-
-        Menu About.
-        . Show information about this plugin.
-        . Donation is most welcome!""")
-        return msg.format( self.pluginName )
+        title = self.tr('{} - Help')
+        title = title.format( self.pluginName )
+        args = {
+            'title': title,
+            'prefixHtml': 'help',
+            'dirHtml': os.path.join( os.path.dirname(__file__), 'resources' )
+        }
+        messageOutputHtml( **args )
 
     @pyqtSlot()
     def _nameChangedLayerFlood(self):
