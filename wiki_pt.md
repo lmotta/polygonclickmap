@@ -7,7 +7,7 @@ O ***Polygon Click Map*** é um plugin do tipo ferramenta que permite obter a de
 O usuário clicando dentro de uma região, a ferramenta cria automaticamente o limite da região.  
 
 ## Dependências:  
-* [SciPy](https://www.scipy.org/install.html) . O QGIS instala SciPy para o Mac e windows.  
+* [SciPy](https://www.scipy.org/install.html) para preenchimento de buracos. O QGIS instala SciPy para o Mac e windows.  
 
 ## Passos:
 
@@ -59,4 +59,4 @@ O usuário clicando dentro de uma região, a ferramenta cria automaticamente o l
     
 ## Doações são bem vindas.  
 Internacional (apenas PayPal)
-[<img src="./resources/paypal.png">](https://www.paypal.com/donate?hosted_button_id=C28ATQWT4VTTQ) No Brasil ![Pix](./resources/pix.png "Pix") Chave: motta.luiz@gmail
+[<img src="./resources/paypal.png">](https://www.paypal.com/donate?hosted_button_id=C28ATQWT4VTTQ) No Brasil ![Pix](./resources/pix.png "Pix") Chave: motta.luiz@gmail.com
