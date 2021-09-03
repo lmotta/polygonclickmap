@@ -36,7 +36,7 @@ from qgis.PyQt.QtWidgets import (
 from qgis.PyQt.QtXml import QDomDocument
 
 from qgis.core import (
-    QgsProject, QgsApplication,
+    QgsProject, QgsApplication, Qgis,
     QgsMapLayer, QgsVectorLayer,
     QgsGeometry, QgsFeature, QgsWkbTypes,
     QgsCoordinateReferenceSystem, QgsCoordinateTransform,
@@ -45,7 +45,6 @@ from qgis.core import (
 from qgis.gui import QgsMapTool
 
 from osgeo import gdal, ogr
-from scipy import ndimage
 
 import os, json
 
@@ -61,6 +60,7 @@ class ImageFlood(QObject):
     finishMovingFloodCanvas = pyqtSignal(bool)
     finishAddedFloodCanvas = pyqtSignal(bool, int)
     finishAddedMoveFloodCanvas = pyqtSignal(bool, int)
+    message = pyqtSignal(str, Qgis.MessageLevel)
     def __init__(self, mapCanvas):
         def loadDocStyle(qmlName):
             filepath = os.path.join( os.path.dirname(__file__), 'resources', qmlName )
@@ -246,6 +246,12 @@ class ImageFlood(QObject):
         if not len( self.arrys_flood ):
             return False
         arry = self.arrys_flood.pop()
+        try:
+            from scipy import ndimage
+        except:
+            msg = self.tr("Missing 'scipy' libray. Need install scipy(https://www.scipy.org/install.html)")
+            self.message.emit( msg , Qgis.Critical )
+            return False
         binary_holes = ndimage.binary_fill_holes( arry )
         arry[ binary_holes ] = self.calcFlood.flood_value_color
         self.arrys_flood.append( arry )
@@ -378,6 +384,7 @@ class PolygonClickMapTool(QgsMapTool):
         self.imageFlood.finishMovingFloodCanvas.connect( self._finishMovingFloodCanvas )
         self.imageFlood.finishAddedFloodCanvas.connect( self._finishAddedFloodCanvas )
         self.imageFlood.finishAddedMoveFloodCanvas.connect( self._finishAddedFloodCanvas )
+        self.imageFlood.message.connect( lambda msg, level: self.msgBar.pushMessage( self.pluginName, msg, level ) )
 
         self.hasPressPoint = False
         self.startedMoveFlood = False

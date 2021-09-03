@@ -4,27 +4,27 @@
 <context>
     <name>DialogSetup</name>
     <message>
-        <location filename="../dialog_setup.py" line="102"/>
+        <location filename="../dialog_setup.py" line="107"/>
         <source>Fields</source>
         <translation>Campos</translation>
     </message>
     <message>
-        <location filename="../dialog_setup.py" line="141"/>
+        <location filename="../dialog_setup.py" line="154"/>
         <source>Invalid CRS(need be projected)</source>
         <translation>Inválido SCR(precisa ser projetado)</translation>
     </message>
     <message>
-        <location filename="../dialog_setup.py" line="145"/>
+        <location filename="../dialog_setup.py" line="158"/>
         <source>Layer: {}</source>
         <translation>Camada: {}</translation>
     </message>
     <message>
-        <location filename="../dialog_setup.py" line="190"/>
+        <location filename="../dialog_setup.py" line="203"/>
         <source>Metadata</source>
         <translation>Metadado</translation>
     </message>
     <message>
-        <location filename="../dialog_setup.py" line="196"/>
+        <location filename="../dialog_setup.py" line="209"/>
         <source>Field name:</source>
         <translation>Nome do campo:</translation>
     </message>
@@ -34,60 +34,68 @@
         <translation type="obsolete">Área virtual(ha)</translation>
     </message>
     <message>
-        <location filename="../dialog_setup.py" line="255"/>
+        <location filename="../dialog_setup.py" line="262"/>
         <source>Metadata field is empty. Create a text field in layer.</source>
         <translation>Campo de metadado está vazio. Crie um campo do tipo texto na camada.</translation>
     </message>
     <message>
-        <location filename="../dialog_setup.py" line="273"/>
+        <location filename="../dialog_setup.py" line="283"/>
         <source>Virtual area is empty</source>
         <translation>Área virtual está  vazia</translation>
     </message>
     <message>
-        <location filename="../dialog_setup.py" line="105"/>
+        <location filename="../dialog_setup.py" line="113"/>
         <source>Adjusts border</source>
         <translation>Ajustar a borda</translation>
     </message>
     <message>
-        <location filename="../dialog_setup.py" line="209"/>
+        <location filename="../dialog_setup.py" line="222"/>
         <source>Virtual area ({}^2)</source>
         <translation>Área virtual area ({}^2)</translation>
+    </message>
+    <message>
+        <location filename="../dialog_setup.py" line="110"/>
+        <source>Growth region using diagonal pixels (8 pixels)</source>
+        <translation>Região de crescimento usando pixeis na diagonal(8 pixeis)</translation>
+    </message>
+</context>
+<context>
+    <name>ImageFlood</name>
+    <message>
+        <location filename="../polygonclickmap.py" line="252"/>
+        <source>Missing &apos;scipy&apos; libray. Need install scipy(https://www.scipy.org/install.html)</source>
+        <translation>Faltando biblioteca &apos;scipy&apos;. Precisa instalar scipy(https://www.scipy.org/install.html)</translation>
     </message>
 </context>
 <context>
     <name>PolygonClickMapPlugin</name>
     <message>
-        <location filename="../plugin.py" line="69"/>
+        <location filename="../plugin.py" line="63"/>
         <source>Create polygon by clicking on the map</source>
         <translation>Cria polígonos clicando no mapa</translation>
     </message>
     <message>
         <location filename="../plugin.py" line="89"/>
-        <source>Setup</source>
-        <translation type="obsolete">Configuração</translation>
-    </message>
-    <message>
-        <location filename="../plugin.py" line="171"/>
-        <source>Missing &apos;scipy&apos; libray. Need install scipy(https://www.scipy.org/install.html)</source>
-        <translation>Faltando biblioteca &apos;scipy&apos;. Precisa instalar scipy(https://www.scipy.org/install.html)</translation>
-    </message>
-    <message>
-        <location filename="../plugin.py" line="98"/>
         <source>Setup...</source>
         <translation>Configuração...</translation>
     </message>
     <message>
-        <location filename="../plugin.py" line="102"/>
+        <location filename="../plugin.py" line="171"/>
+        <source>Missing &apos;scipy&apos; libray. Need install scipy(https://www.scipy.org/install.html)</source>
+        <translation type="obsolete">Faltando biblioteca &apos;scipy&apos;. Precisa instalar scipy(https://www.scipy.org/install.html)</translation>
+    </message>
+    <message>
+        <location filename="../plugin.py" line="93"/>
         <source>About...</source>
         <translation>Sobre...</translation>
     </message>
     <message>
-        <location filename="../plugin.py" line="154"/>
+        <location filename="../plugin.py" line="149"/>
         <source>{} - About</source>
         <translation>{} - Sobre</translation>
     </message>
     <message>
-        <location filename="../plugin.py" line="92"/>
+        <location filename="../plugin.py" line="84"/>
         <source>Only for editable layers.</source>
         <translation>Apenas par camadas editáveis.</translation>
     </message>
@@ -95,72 +103,72 @@
 <context>
     <name>PolygonClickMapTool</name>
     <message>
-        <location filename="../polygonclickmap.py" line="434"/>
+        <location filename="../polygonclickmap.py" line="458"/>
         <source>Missing raster layer visible in Map</source>
         <translation>Faltando camada de imagem visível no Mapa</translation>
     </message>
     <message>
-        <location filename="../polygonclickmap.py" line="486"/>
+        <location filename="../polygonclickmap.py" line="505"/>
         <source>Missing polygon layer to receive</source>
         <translation>Faltando camada de polígonos para receber</translation>
     </message>
     <message>
-        <location filename="../polygonclickmap.py" line="562"/>
+        <location filename="../polygonclickmap.py" line="581"/>
         <source>Polygonize - Missing features</source>
         <translation>Poligonalização - Faltando feições</translation>
     </message>
     <message>
-        <location filename="../polygonclickmap.py" line="564"/>
+        <location filename="../polygonclickmap.py" line="583"/>
         <source>Polygonize - {} features added</source>
         <translation>Poligonalização - {} feições adicionadas</translation>
     </message>
     <message>
-        <location filename="../polygonclickmap.py" line="520"/>
+        <location filename="../polygonclickmap.py" line="539"/>
         <source>Current layer is</source>
         <translation>Camada atual é</translation>
     </message>
     <message>
-        <location filename="../polygonclickmap.py" line="693"/>
+        <location filename="../polygonclickmap.py" line="687"/>
         <source>images</source>
         <translation>imagens</translation>
     </message>
     <message>
-        <location filename="../polygonclickmap.py" line="555"/>
+        <location filename="../polygonclickmap.py" line="574"/>
         <source>Add features from images to</source>
         <translation>Adicionar feições a partir das imagens para</translation>
     </message>
     <message>
-        <location filename="../polygonclickmap.py" line="570"/>
+        <location filename="../polygonclickmap.py" line="589"/>
         <source>Delete {} images</source>
         <translation>Deletado {} imagens</translation>
     </message>
     <message>
-        <location filename="../polygonclickmap.py" line="659"/>
+        <location filename="../polygonclickmap.py" line="653"/>
         <source>{} images</source>
         <translation>{} imagens</translation>
     </message>
     <message>
-        <location filename="../polygonclickmap.py" line="663"/>
+        <location filename="../polygonclickmap.py" line="657"/>
         <source>Treshold</source>
         <translation>Tolerância</translation>
     </message>
     <message>
-        <location filename="../polygonclickmap.py" line="665"/>
+        <location filename="../polygonclickmap.py" line="659"/>
         <source>(pixel RGB)</source>
         <translation>(pixel RGB)</translation>
     </message>
     <message>
-        <location filename="../polygonclickmap.py" line="704"/>
+        <location filename="../polygonclickmap.py" line="698"/>
         <source>Canceled by user</source>
         <translation>Cancelado pelo usuário</translation>
     </message>
     <message>
-        <location filename="../polygonclickmap.py" line="696"/>
+        <location filename="../polygonclickmap.py" line="690"/>
         <source>{} - Last image added {} pixels</source>
         <translation>{} - Ultima imagem adicionada {} pixeis</translation>
     </message>
     <message>
-        <location filename="../polygonclickmap.py" line="699"/>
+        <location filename="../polygonclickmap.py" line="693"/>
         <source>{} - Not added images( no pixels found)</source>
         <translation>{} - Nao foi adicionada imagens( não foi encontrado pixeis)</translation>
     </message>
@@ -265,7 +273,7 @@
         . Show information about this plugin.
         . Donation is most welcome!
         </source>
-        <translation>
+        <translation type="obsolete">
         *** AJUDA - {} ***
         Cria polígono clicando no mapa
 
@@ -299,14 +307,19 @@
         </translation>
     </message>
     <message>
-        <location filename="../polygonclickmap.py" line="479"/>
+        <location filename="../polygonclickmap.py" line="498"/>
         <source>remove holes - {} images</source>
         <translation>remove os buracos - {} imagens</translation>
     </message>
     <message>
-        <location filename="../polygonclickmap.py" line="509"/>
+        <location filename="../polygonclickmap.py" line="528"/>
         <source>Remove all images ({})?</source>
         <translation>Remove todas as imagens ({})?</translation>
+    </message>
+    <message>
+        <location filename="../polygonclickmap.py" line="600"/>
+        <source>{} - Help</source>
+        <translation>{} - Ajuda</translation>
     </message>
 </context>
 </TS>

@@ -37,13 +37,7 @@ from .translate import Translate
 
 from .utils import connectSignalSlot, messageOutputHtml
 
-EXISTSSCIPY = True
-# try:
-#     from .polygonclickmap import PolygonClickMapTool # from scipy import ndimage
-# except:
-#     EXISTSSCIPY = False
-from .polygonclickmap import PolygonClickMapTool # from scipy import ndimage
-
+from .polygonclickmap import PolygonClickMapTool
 
 from .dialog_setup import DialogSetup
 
@@ -73,9 +67,7 @@ class PolygonClickMapPlugin(QObject):
             layer.editingStopped: self._editingStopped
         }.items()
 
-        self.messageExistsScipy = False
-        if EXISTSSCIPY:
-            self.tool = PolygonClickMapTool( iface, self.pluginName )
+        self.tool = PolygonClickMapTool( iface, self.pluginName )
 
     def initGui(self):
         def createAction(icon, title, calback, toolTip=None, isCheckable=False):
@@ -92,8 +84,7 @@ class PolygonClickMapPlugin(QObject):
         toolTip = self.tr('Only for editable layers.')
         toolTip = f"{self.titleTool}. *{toolTip}"
         self.actions['tool'] = createAction( icon, self.titleTool, self.runTool, toolTip, True )
-        if EXISTSSCIPY:
-            self.tool.setAction( self.actions['tool'] )
+        self.tool.setAction( self.actions['tool'] )
         # Action setFields
         title = self.tr('Setup...')
         icon = QgsApplication.getThemeIcon('/propertyicons/general.svg')
@@ -166,12 +157,6 @@ class PolygonClickMapPlugin(QObject):
 
     @pyqtSlot('QgsMapLayer*')
     def _currentLayerChanged(self, layer):
-        if not EXISTSSCIPY and not self.messageExistsScipy:
-            msg = self.tr("Missing 'scipy' libray. Need install scipy(https://www.scipy.org/install.html)")
-            self.iface.messageBar().pushCritical( self.pluginName, msg )
-            self.messageExistsScipy = True
-            return
-
         if self.tool.isPolygon( layer ):
             isEditabled = layer.isEditable()
             self._enabled( isEditabled )
