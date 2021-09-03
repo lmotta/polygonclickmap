@@ -162,6 +162,21 @@ class CalculateArrayFlood():
         self.minValue, self.maxValue = 1, 254
         self.threshFlood = 50 # 0 .. 255
         self.threshSieve = 100
+        self.coordinatesPixels = self._coordinatesAdjacent4pixels
+
+    def _coordinatesAdjacent4pixels(self, row, col):
+        coords = []
+        for d in (-1, 1):
+            coords.append( ( row+d, col ) )
+            coords.append( ( row, col+d ) )
+        return coords
+
+    def _coordinateAdjacent8pixels(self, row, col):
+        coords = self._coordinatesAdjacent4pixels( row, col )
+        for d in (-1, 1):
+            coords.append( ( row+d, col+d ) )
+            coords.append( ( row-d, col+d ) )
+        return coords
 
     def get(self, arraySource, seed, isCanceled, arrayFloodBack=None, threshould=None):
         def sieve(arry):
@@ -183,7 +198,7 @@ class CalculateArrayFlood():
             return arry_sieve
 
         def floodfill():
-            # Adaptation from https://github.com/python-pillow/Pillow/src/PIL/ImageDraw.py 
+            # Adaptation from https://github.com/python-pillow/Pillow/src/PIL/ImageDraw.py
             def getValueFloodBack():
                 for v in range(self.flood_value+1, 256):
                     if arraySource[ arraySource == v].sum() == 0:
@@ -223,10 +238,10 @@ class CalculateArrayFlood():
             full_edge = set()
             while edge:
                 new_edge = set()
-                for ( row, col ) in edge:  # 4 adjacent method
+                for ( row, col ) in edge:
                     if isCanceled():
                         return None
-                    for (s, t) in ((row + 1, col), (row - 1, col), (row, col + 1), (row, col - 1)):
+                    for (s, t) in self.coordinatesPixels( row, col ):
                         # If already processed, or if a coordinate is negative, or a coordinate greather image limit, skip
                         if (s, t) in full_edge or s < 0 or t < 0 or s > (rows-1) or t > (cols-1):
                             continue

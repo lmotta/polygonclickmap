@@ -193,10 +193,10 @@ class ImageFlood(QObject):
             return dataResult
 
         task = QgsTask.fromFunction('PolygonClickImage add flood', run, on_finished=finished )
-        # self.taskManager.addTask( task )
+        self.taskManager.addTask( task )
         # Debug
-        r = run( task )
-        finished( None, r )
+        # r = run( task )
+        # finished( None, r )
 
     def addFloodMoveCanvas(self):
         def finished(exception, dataResult):
