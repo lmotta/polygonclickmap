@@ -59,7 +59,7 @@ class AnnotationCanvas(QObject):
     def setText(self, text):
         def setFrameDocument():
             td = QTextDocument( text )
-            td.setDefaultFont( QFont('Arial', 16) )
+            td.setDefaultFont( QFont('Arial', 14) )
             self.annot.setFrameOffsetFromReferencePointMm(QPointF(0,0))
             self.annot.setFrameSize( td.size() )
             self.annot.setDocument( td )

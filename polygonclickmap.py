@@ -37,7 +37,7 @@ from qgis.PyQt.QtXml import QDomDocument
 
 from qgis.core import (
     QgsProject, QgsApplication,
-    QgsMapLayer, QgsVectorLayer, QgsRasterLayer,
+    QgsMapLayer, QgsVectorLayer,
     QgsGeometry, QgsFeature, QgsWkbTypes,
     QgsCoordinateReferenceSystem, QgsCoordinateTransform,
     QgsTask
@@ -49,7 +49,11 @@ from scipy import ndimage
 
 import os, json
 
-from .utils import MapItemLayers, CanvasArrayRGB, CalculateArrayFlood, createDatasetImageFromArray, adjustsBorder
+from .utils import (
+    MapItemLayers, CanvasArrayRGB, CalculateArrayFlood, 
+    datasetImageFromArray, memoryRasterLayerFromDataset,
+    adjustsBorder
+)
 
 from .canvas_anottation import AnnotationCanvas
 
@@ -84,7 +88,7 @@ class ImageFlood(QObject):
         self.stylePoint = loadDocStyle('pointflood.qml')
         self.styleRaster = loadDocStyle('rasterflood.qml')
 
-        self.filenameRasterFlood = '/vsimem/raster_flood.tif'
+        self.vsimemNameRasterFlood = '/vsimem/raster_flood.tif'
 
         self.smooth_iter = 1
         self.smooth_offset  = 0.25
@@ -92,7 +96,7 @@ class ImageFlood(QObject):
     def __del__(self):
         self.canvasArray.array = None
         try:
-            gdal.Unlink( self.filenameRasterFlood )
+            gdal.Unlink( self.vsimemNameRasterFlood )
         except:
             pass
 
@@ -254,7 +258,7 @@ class ImageFlood(QObject):
             args = self.canvasArray.getGeoreference()
             args['array'] = arrayFlood
             # Raster
-            dsRaster = createDatasetImageFromArray( **args )
+            dsRaster = datasetImageFromArray( **args )
             band = dsRaster.GetRasterBand(1)
             # Vector
             ds = ogr.GetDriverByName('MEMORY').CreateDataSource('memData')
@@ -300,17 +304,15 @@ class ImageFlood(QObject):
         args = self.canvasArray.getGeoreference()
         args['array'] = arrayFlood
         args['nodata'] = self.calcFlood.flood_out
-        ds1 = createDatasetImageFromArray( **args )
-        ds2 = gdal.GetDriverByName('GTiff').CreateCopy( self.filenameRasterFlood, ds1 )
-        ds1, ds2 = None, None
-        rl = QgsRasterLayer( self.filenameRasterFlood, 'raster', 'gdal')
-        rl.importNamedStyle( self.styleRaster )
-        return rl
+        return  datasetImageFromArray( **args )
 
     def _finishedFloodCanvas(self, dataResult ):
         layers = [ self.lyrSeed ]
         if 'rasterFlood' in dataResult :
-            layers.append( dataResult['rasterFlood'] )
+            #  VSIMemory need in main thread
+            rl = memoryRasterLayerFromDataset( dataResult['rasterFlood'], self.vsimemNameRasterFlood, self.styleRaster )
+            dataResult['rasterFlood'] = None
+            layers.append( rl )
         self.mapItem.setLayers( layers )
         self.mapItem.updateCanvas()
         self.taskCreateFlood = None
@@ -339,7 +341,10 @@ class ImageFlood(QObject):
     def _setMapItem(self, existsFlood=True):
         layers = []
         if existsFlood:
-            layers.append( self._rasterFlood( self._reduceArrysFlood() )  )
+            ds = self._rasterFlood( self._reduceArrysFlood() )
+            rl = memoryRasterLayerFromDataset( ds, self.vsimemNameRasterFlood, self.styleRaster )
+            ds = None
+            layers.append( rl)
         self.mapItem.setLayers( layers )
         self.mapItem.updateCanvas()
 
@@ -594,15 +599,11 @@ class PolygonClickMapTool(QgsMapTool):
         self.spThreshFlood.setValue( treshold )
 
     def _help(self):
-        msg =  self.tr( """
-        *** HELP - {} ***
-        Create polygon by clicking on the map image
-
+        msg =  self.tr( """*** HELP - {} ***
         Steps:
         - Creating an Image of growth.
          . The tool create a image of growth from the clicked point, seed point, in the map.
-         . The growth depends on the threshold used. The RGB value of the seed point is compared with its neighbors, 
-         if the difference is smaller then threshold, the image grows.
+         . The growth depends on the threshold used. The RGB value of the seed point is compared with its neighbors. 
          . The threshold value is show right side of status bar in QGIS window.
          . Can change the threshold value directly in the value box or by clicking and dragging the mouse.
          Mouse: moving to the right or up, the treshold increases, otherwise it decreases.
@@ -611,21 +612,18 @@ class PolygonClickMapTool(QgsMapTool):
 
         - Working with Images of Growth.
          . Show or hide: Use right botton of mouse.
-         . Delete the last image: D key.
-         . Undo: U Key.
-         . Remove all images: R Key
-         . Fill holes: F Key.
-         . Poligonize: P Key. *** Create polygon from image ***
+         . Keys: D(Delete the last image), U(Undo), R(Remove all), F(Fill holes),
+           P(Poligonize) *** Create polygon from image ***.
 
         Menu Setup.
-        . Select the exists field, text type(will be populate with metadata of tool).
-        Metadata: List of visible rasters layers images, user, datetime and scale of map.
-        . Virtual area(ha): will be added a expression onto polygon layer for calculate area(ha).
+        . Metadata: Select the exists field, text type, will be populate with metadata of tool.
+        . Virtual area(ha): Will be added a expression onto polygon layer for calculate area(ha).
+        . Region growth: Mark this option for calculate with 8 neighborhood pixels(diagonal).
+        . Adjusts border: Mark this option for adjust border line between polygons.
 
         Menu About.
         . Show information about this plugin.
-        . Donation is most welcome!
-        """)
+        . Donation is most welcome!""")
         return msg.format( self.pluginName )
 
     @pyqtSlot()

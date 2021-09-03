@@ -29,7 +29,7 @@ from qgis.PyQt.QtGui import QImage, QColor
 
 from qgis.core import (
     QgsProject,
-    QgsMapLayer,
+    QgsMapLayer, QgsRasterLayer,
     QgsMapSettings, 
     QgsMapRendererParallelJob,
     QgsCoordinateTransform,
@@ -73,6 +73,8 @@ class MapItemLayers(QgsMapCanvasItem):
         job.waitForFinished()
         
     def setLayers(self, layers):
+        for l in layers:
+            l = None # Free resources
         self.layers = layers
 
 class CanvasArrayRGB():
@@ -163,20 +165,6 @@ class CalculateArrayFlood():
         self.threshFlood = 50 # 0 .. 255
         self.threshSieve = 100
         self.coordinatesAdjacentPixels = self._coordinatesAdjacent4Pixels
-
-    def _coordinatesAdjacent4Pixels(self, row, col):
-        coords = []
-        for d in (-1, 1):
-            coords.append( ( row+d, col ) )
-            coords.append( ( row, col+d ) )
-        return coords
-
-    def _coordinateAdjacent8Pixels(self, row, col):
-        coords = self._coordinatesAdjacent4Pixels( row, col )
-        for d in (-1, 1):
-            coords.append( ( row+d, col+d ) )
-            coords.append( ( row-d, col+d ) )
-        return coords
 
     def get(self, arraySource, seed, isCanceled, arrayFloodBack=None, threshould=None):
         def sieve(arry):
@@ -297,8 +285,22 @@ class CalculateArrayFlood():
     def setFloodValueFromDatasetImage(self, dsImage):
         return self.setFloodValue( dsImage.ReadAsArray() )
 
+    def _coordinatesAdjacent4Pixels(self, row, col):
+        coords = []
+        for d in (-1, 1):
+            coords.append( ( row+d, col ) )
+            coords.append( ( row, col+d ) )
+        return coords
 
-def createDatasetImageFromArray(array, geoTransform, spatialRef, nodata=None):
+    def _coordinateAdjacent8Pixels(self, row, col):
+        coords = self._coordinatesAdjacent4Pixels( row, col )
+        for d in (-1, 1):
+            coords.append( ( row+d, col+d ) )
+            coords.append( ( row-d, col+d ) )
+        return coords
+
+
+def datasetImageFromArray(array, geoTransform, spatialRef, nodata=None):
     ds = gdal_array.OpenArray( array )
     ds.SetGeoTransform( geoTransform )
     ds.SetSpatialRef( spatialRef )
@@ -306,6 +308,14 @@ def createDatasetImageFromArray(array, geoTransform, spatialRef, nodata=None):
         for b in range( ds.RasterCount ):
             b.SetNoDataValue( nodata )
     return ds
+
+def memoryRasterLayerFromDataset(dataset, vsimemFile, nameStyle):
+    ds = gdal.GetDriverByName('GTiff').CreateCopy( vsimemFile, dataset )
+    ds = None
+    rl = QgsRasterLayer( vsimemFile, 'raster', 'gdal')
+    rl.importNamedStyle( nameStyle )
+    return rl
+
 
 def connectSignalSlot(signal, slot):
     """ Connect signal with slot if not connected

@@ -107,7 +107,7 @@ class DialogSetup(QDialog):
         gpbFields = QGroupBox( self.tr('Fields') )
         gpbFields.setLayout( lytFields )
         lytMain.addWidget( gpbFields )
-        title = self.tr('Region growth with pixels diagonal (8 pixels)')
+        title = self.tr('Growth region using diagonal pixels (8 pixels)')
         self.chkAdjacent8pixels = checkBoxLayerProperty( title, layer, self.keyAdjacentPixels )
         lytMain.addWidget( self.chkAdjacent8pixels )
         title = self.tr('Adjusts border')
@@ -119,6 +119,12 @@ class DialogSetup(QDialog):
         lytMain.addWidget( btnBox )
         lytMain.addItem( QSpacerItem( 10, 10, QSizePolicy.Minimum, QSizePolicy.Expanding ) )
         self.setLayout( lytMain )
+
+    def currentCrs(self):
+        return self.psCrs.crs()
+
+    def setCurrentCrs(self, crs):
+        return self.psCrs.setCrs( crs )
 
     def _statusFieldArea(self, layer):
         ini_expArea = self.expArea.split('{')[0]
@@ -246,12 +252,6 @@ class DialogSetup(QDialog):
     def _removeArea(self):
         index = self.statusArea['index']
         self.layer.removeExpressionField( index )
-
-    def currentCrs(self):
-        return self.psCrs.crs()
-
-    def setCurrentCrs(self, crs):
-        return self.psCrs.setCrs( crs )
 
     @pyqtSlot()
     def accept(self):
