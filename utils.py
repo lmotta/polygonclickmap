@@ -24,13 +24,13 @@ __copyright__ = '(C) 2021, Luiz Motta'
 __revision__ = '$Format:%H$'
 
 
-from qgis.PyQt.QtCore import Qt, QByteArray, QBuffer, QIODevice, pyqtSignal
+from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QImage, QColor
 
 from qgis.core import (
     QgsProject, QgsApplication,
     QgsMapLayer, QgsRasterLayer,
-    QgsMapSettings, 
+    QgsMapSettings,
     QgsMapRendererParallelJob,
     QgsCoordinateTransform,
     QgsGeometry, QgsPolygon, QgsLineString, QgsPoint,

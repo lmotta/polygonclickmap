@@ -24,7 +24,7 @@ __copyright__ = '(C) 2021, Luiz Motta'
 __revision__ = '$Format:%H$'
 
 from qgis.PyQt.QtCore import (
-    Qt, QVariant, QDateTime,
+    Qt, QDateTime,
     QObject, pyqtSlot, pyqtSignal
 )
 from qgis.PyQt.QtWidgets import (
