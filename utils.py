@@ -49,8 +49,10 @@ class MapItemLayers(QgsMapCanvasItem):
     def __init__(self, mapCanvas):
         super().__init__( mapCanvas )
         self.mapCanvas = mapCanvas
+        self.project = QgsProject.instance()
         self.enabled = True
         self.layers = []
+        self.crs = None
 
     def paint(self, painter, *args): # NEED *args for   WINDOWS!
         def finished():
@@ -74,10 +76,34 @@ class MapItemLayers(QgsMapCanvasItem):
         job.finished.connect( finished) 
         job.waitForFinished()
         
-    def setLayers(self, layers):
-        for l in layers:
-            l = None # Free resources
-        self.layers = layers
+    def updateCanvas(self, layers=None):
+        if not layers is None:
+            for l in layers:
+                l = None # Free resources
+            self.layers = layers
+        self.crs = self.project.crs()
+        super().updateCanvas()
+
+    def changeExtentByCrs(self):
+        crs = self.project.crs()
+        if crs == self.crs:
+            return True
+
+        rect = self.rect()
+        ct = QgsCoordinateTransform()
+        ct.setSourceCrs( self.crs )
+        ct.setDestinationCrs( crs )
+        try:
+            rectNew = ct.transform( rect )
+        except:
+            return False
+        self.setRect( rectNew )
+        self.crs = crs
+        return True
+
+    def backCrs(self):
+        if self.crs:
+            self.mapCanvas.setDestinationCrs( self.crs )
 
 class CanvasArrayRGB():
     def __init__(self, canvas):
@@ -86,6 +112,7 @@ class CanvasArrayRGB():
         self.mapCanvas = canvas
         # Set by process.finished
         self.extent = None
+        self.crs = None
         self.georeference = { 'geoTransform': None, 'spatialRef': None } # createDatasetImageFromArray
         self.array = None
 
@@ -93,19 +120,20 @@ class CanvasArrayRGB():
         """
         return: [ QgsRasterLayer ]
         """
-        def getExtent(layer, ct):
-            crsLayer = layer.crs()
-            ct.setSourceCrs( crsLayer )
-            return ct.transform( layer.extent() )
+        def intersectsExtents( layer):
+            ct.setDestinationCrs( layer.crs() )
+            extent = ct.transform( extCanvas )
+            return extent.intersects( layer.extent())
 
         layers =  [ l for l in self.root.checkedLayers() if not l is None and l.type() == QgsMapLayer.RasterLayer ]
         if not len( layers ):
             return []
         # Check Intersects
-        extent = self.mapCanvas.extent()
         ct = QgsCoordinateTransform()
-        ct.setDestinationCrs( self.project.crs() )
-        return  [ layer for layer in layers if extent.intersects( getExtent( layer, ct ) ) ] # [ QgsRasterLayer ]
+        ct.setSourceCrs( self.project.crs() )
+        extCanvas = self.mapCanvas.extent()
+        
+        return  [ layer for layer in layers if intersectsExtents( layer ) ]
 
     def process(self, rasters):
         def finished():
@@ -137,6 +165,7 @@ class CanvasArrayRGB():
                 image = image.scaled( image.width() / 3, image.height() / 3 )
                 image = image.convertToFormat( QImage.Format_Indexed8, Qt.OrderedDither | Qt.OrderedAlphaDither )
 
+            self.crs = self.project.crs()
             extent = self.mapCanvas.extent()
             self.extent = extent
             setGeoreference( image, extent )
@@ -153,7 +182,7 @@ class CanvasArrayRGB():
         job.waitForFinished()
 
     def changedCanvas(self):
-        return not self.extent == self.mapCanvas.extent()
+        return not self.extent == self.mapCanvas.extent() or not self.crs == self.project.crs()
 
     def getGeoreference(self):
         return self.georeference.copy() # shallow copy

@@ -73,6 +73,8 @@ class ImageFlood(QObject):
         self.mapItem = MapItemLayers( mapCanvas )
         self.calcFlood = CalculateArrayFlood()
 
+        mapCanvas.destinationCrsChanged.connect( self.destinationCrsChanged )
+
         self.taskManager = QgsApplication.taskManager()
         self.taskCreateFlood = None
 
@@ -318,8 +320,7 @@ class ImageFlood(QObject):
             rl = memoryRasterLayerFromDataset( dataResult['rasterFlood'], self.vsimemNameRasterFlood, self.styleRaster )
             dataResult['rasterFlood'] = None
             layers.append( rl )
-        self.mapItem.setLayers( layers )
-        self.mapItem.updateCanvas()
+        self.mapItem.updateCanvas( layers )
         self.taskCreateFlood = None
 
     def _createFlood(self, pointCanvas, threshFlood=None):
@@ -350,13 +351,23 @@ class ImageFlood(QObject):
             rl = memoryRasterLayerFromDataset( ds, self.vsimemNameRasterFlood, self.styleRaster )
             ds = None
             layers.append( rl)
-        self.mapItem.setLayers( layers )
-        self.mapItem.updateCanvas()
+        self.mapItem.updateCanvas( layers )
 
     @pyqtSlot(bool)
     def cancelCreateFlood(self, checked):
         if self.taskCreateFlood:
             self.taskCreateFlood.cancel()
+
+    @pyqtSlot()
+    def destinationCrsChanged(self):
+        if self.mapItem.crs is None:
+            return
+
+        if not self.mapItem.changeExtentByCrs():
+            msg = self.tr('CRS that was selected, {}, is not supported.')
+            msg = msg.format( QgsProject.instance().crs().authid() )
+            self.message.emit( msg, Qgis.Warning )
+            self.mapItem.backCrs()
 
 
 class PolygonClickMapTool(QgsMapTool):
