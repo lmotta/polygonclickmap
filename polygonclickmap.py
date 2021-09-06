@@ -191,7 +191,7 @@ class ImageFlood(QObject):
         def run(task):
             self.taskCreateFlood = task
             arryFlood, totalPixels = self._createFlood( pointCanvas)
-            dataResult = { 'isCanceled': arryFlood is None,  'totalPixels': totalPixels }
+            dataResult = { 'isCanceled': arryFlood is None, 'totalPixels': totalPixels }
             if totalPixels:
                 self.arrys_flood.append( arryFlood )
             if len( self.arrys_flood ):
@@ -309,7 +309,7 @@ class ImageFlood(QObject):
         args = self.canvasArray.getGeoreference()
         args['array'] = arrayFlood
         args['nodata'] = self.calcFlood.flood_out
-        return  datasetImageFromArray( **args )
+        return datasetImageFromArray( **args )
 
     def _finishedFloodCanvas(self, dataResult ):
         layers = [ self.lyrSeed ]

@@ -306,8 +306,9 @@ def datasetImageFromArray(array, geoTransform, spatialRef, nodata=None):
     ds = gdal_array.OpenArray( array )
     ds.SetGeoTransform( geoTransform )
     ds.SetSpatialRef( spatialRef )
-    if nodata:
-        for b in range( ds.RasterCount ):
+    if not nodata is None:
+        for idx in range( ds.RasterCount ):
+            b = ds.GetRasterBand( idx+1 )
             b.SetNoDataValue( nodata )
     return ds
 
