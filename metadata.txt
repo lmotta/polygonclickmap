@@ -8,7 +8,7 @@ about:From the click on the map, the tool automatically creates a polygon on the
 
      Documentation: <a href="https://github.com/lmotta/polygonclickmap/wiki/English">english</a> or <a href="https://github.com/lmotta/polygonclickmap/wiki/Portuguese">portuguese</a>.
 
-version:0.3
+version:0.3.1
 qgisMinimumVersion:3.16
 
 author:Luiz Motta
@@ -27,7 +27,9 @@ icon:./resources/polygonclickmap.svg
 experimental:False
 deprecated:False
 
-changelog:0.3(2021-09-03)
+changelog:0.3.1(2021-09-05)
+ Fixed not show region
+ - 0.3(2021-09-03)
  Added an option to use 8 pixels in the growth region calculation
  - 0.2(2021-08-31)
  Improvement using array numpy

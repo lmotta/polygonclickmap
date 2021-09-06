@@ -10,6 +10,8 @@ SciPy(https://www.scipy.org/install.html) for fill holes. The QGIS install SciPy
 Luiz Motta
 
 ## Changelog
+- 2021-09-05)
+ Fixed not show region
 - 2021-09-03
  Added an option to use 8 pixels in the growth region calculation
 - 2021-08-31
