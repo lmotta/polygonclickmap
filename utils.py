@@ -360,6 +360,9 @@ def connectSignalSlot(signal, slot):
     signal.connect( slot )
 
 def adjustsBorder(geom, layer):
+    """
+    Return { 'isOk', 'geometry', 'message'}
+    """
     def getGeomAjustBorder(geom2ajust, geom):
         def getGeomsInternalRing(rings):
             # rings = [ QgsPointXY ]
@@ -375,26 +378,52 @@ def adjustsBorder(geom, layer):
         def getBorderCombine():
             border = geom.removeInteriorRings()
             border2ajust = geom2ajust.removeInteriorRings()
-            return border2ajust.combine( border )
+            geomOp = border2ajust.combine( border )
+            msgError = border2ajust.lastError()
+            if geomOp is None or msgError:
+                msg = f"combine ({msgError})" if msgError else 'combine'
+                return { 'isOk': False, 'message': msg }
+            
+            return { 'isOk': True, 'geometry': geomOp }
 
-        border = getBorderCombine()
+        r = getBorderCombine()
+        if not r['isOk']:
+            return r
+
+        border = r['geometry']
         rings = border.asPolygon()
-        result = geom2ajust.difference( geom )
-        if len( rings ) == 1: # Not gaps
-            return result
-        
-        for geom in getGeomsInternalRing( rings):
-            result = result.combine( geom )
-        return result
+        geomOp = geom2ajust.difference( geom )
+        msgError = geom2ajust.lastError()
+        if geomOp is None or msgError:
+            msg = f"difference ({msgError})" if msgError else 'diference'
+            return { 'isOk': False, 'message': msg }
 
-    result = geom
+        if len( rings ) == 1: # Not gaps
+            return { 'isOk': True, 'geometry': geomOp }
+        
+        result = geomOp
+        for geom in getGeomsInternalRing( rings):
+            geomOp = result.combine( geom )
+            msgError = result.lastError()
+            if geomOp is None or msgError:
+                msg = f"combine rings ({msgError})" if msgError else 'combine rings'
+                return { 'isOk': False, 'message': msg }
+            result = geomOp
+        return { 'isOk': True, 'geometry': geomOp }
+
+    resultOp = { 'isOk': True, 'geometry': geom}
     iter = layer.getFeatures( geom.boundingBox() )
     feat = QgsFeature()
     while iter.nextFeature( feat ):
         g = feat.geometry()
         if geom.overlaps( g ):
-            result = getGeomAjustBorder( result, g )
-    return result
+            resultOp = getGeomAjustBorder( geom, g )
+            if not resultOp['isOk']:
+                resultOp['geometry'] = geom
+                resultOp['message'] = f"[{feat.id()}]: {resultOp['message']}"
+                return resultOp
+            geom = resultOp['geometry']
+    return resultOp
 
 def messageOutputHtml(title, prefixHtml, dirHtml):
     def readFile(filepath):

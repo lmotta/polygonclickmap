@@ -292,7 +292,10 @@ class ImageFlood(QObject):
             g.transform( ct )
             f = QgsFeature( fields )
             if hasAdjustsBorder:
-                g = adjustsBorder( g, layerFlood )
+                result = adjustsBorder( g, layerFlood )
+                if not result['isOk']:
+                    self.message.emit( result['message'], Qgis.Warning)
+                g = result['geometry']
             f.setGeometry( g )
             if metadata:
                 f[ metadata['field'] ] = metadata['value']
@@ -522,7 +525,7 @@ class PolygonClickMapTool(QgsMapTool):
                 return
 
             if not self.imageFlood.totalFlood():
-                msg = 'Missing region to Poligonize'
+                msg = self.tr('Missing region to Polygonize')
                 self.msgBar.pushWarning( self.pluginName, msg )
                 return
 
