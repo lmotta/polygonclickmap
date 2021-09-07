@@ -521,6 +521,11 @@ class PolygonClickMapTool(QgsMapTool):
                 self.msgBar.pushWarning( self.pluginName, msg )
                 return
 
+            if not self.imageFlood.totalFlood():
+                msg = 'Missing region to Poligonize'
+                self.msgBar.pushWarning( self.pluginName, msg )
+                return
+
             hasAdjustsBorder = self.layerFlood.customProperty( self.KEY_ADJUSTSBORDER, False )
             totalFeats = self.imageFlood.polygonizeFlood( self.layerFlood, self._getMetadata(), hasAdjustsBorder )
             if not totalFeats:
