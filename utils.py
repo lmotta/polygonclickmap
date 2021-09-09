@@ -189,7 +189,6 @@ class CanvasArrayRGB():
 
 class CalculateArrayFlood():
     def __init__(self):
-        self.flood_value = None
         self.flood_value_color = 255
         self.flood_out = 0
         self.minValue, self.maxValue = 1, 254
@@ -209,86 +208,103 @@ class CalculateArrayFlood():
                 band = dsSieve.GetRasterBand( b+1 )
                 gdal.SieveFilter( srcBand=band, maskBand=None, dstBand=band, threshold=self.threshSieve, connectedness=8 )
                 arry_band = band.ReadAsArray()
-                bool_s = ( arry_sieve == self.flood_value )
-                bool_b = ( arry_band == self.flood_value )
-                arry_sieve[ bool_s * bool_b ] = self.flood_value
+                bool_s = ( arry_sieve == flood_value )
+                bool_b = ( arry_band == flood_value )
+                arry_sieve[ bool_s * bool_b ] = flood_value
                 arry_sieve[ ~(bool_s * bool_b) ] = self.flood_out
             dsSieve = None
             return arry_sieve
 
         def floodfill():
             # Adaptation from https://github.com/python-pillow/Pillow/src/PIL/ImageDraw.py
-            def getValueFloodBack():
-                for v in range(self.flood_value+1, 256):
-                    if arraySource[ arraySource == v].sum() == 0:
-                        return v
-                return None
-
-            def isBoundary(row, col):
-                for idx in range( n_bands ):
-                    if not arry_flood[ idx, row, col ].item() == valueFloodBack:
-                        return False
-                return True
-
             def isSameValue(row, col):
                 for idx in range( n_bands ):
                     if abs( value_seed[ idx ] - arry_flood[ idx, row, col ].item() ) > thresh:
                         return False
                 return True
-            
-            arry_flood = arraySource.copy()
-            thresh = threshould if threshould else self.threshFlood
-            valueFloodBack = None
-            if not arrayFloodBack is None:
+
+            def process():
+                row, col = seed[1], seed[0]
+                for idx in range( n_bands ):
+                    value_seed.append( arry_flood[ idx, row, col ] )
+                    arry_flood[ idx, row, col ] = flood_value
+                edge = { ( row, col ) }
+                full_edge = set()
+                while edge:
+                    new_edge = set()
+                    for ( row, col ) in edge:
+                        if isCanceled():
+                            return None
+                        for (s, t) in self.coordinatesAdjacentPixels( row, col ):
+                            # If already processed, or if a coordinate is negative, or a coordinate greather image limit, skip
+                            if (s, t) in full_edge or s < 0 or t < 0 or s > (rows-1) or t > (cols-1):
+                                continue
+                            coord = ( s, t )
+                            full_edge.add( coord )
+                            if isSameValue( coord[0], coord[1] ):
+                                arry_flood[ :, coord[0], coord[1] ] = flood_value
+                                new_edge.add((s, t))
+                    full_edge = edge  # discard pixels processed
+                    edge = new_edge
+
+                return arry_flood
+
+            def processFloodBack():
+                def isBoundary(row, col):
+                    for idx in range( n_bands ):
+                        if not arry_flood[ idx, row, col ].item() == flood_value_back:
+                            return False
+                    return True
+
+                flood_value_back = 1001 # RGB value 0 - 255
                 bool_FloodBack = ( arrayFloodBack == self.flood_value_color )
-                valueFloodBack = getValueFloodBack()
-                if not valueFloodBack:
-                    raise TypeError('Error calculate value of flood back')
+                row, col = seed[1], seed[0]
+                for idx in range( n_bands ):
+                    value_seed.append( arry_flood[ idx, row, col ] )
+                    arry_flood[ idx, row, col ] = flood_value
+                    arry_flood[ idx ][ bool_FloodBack ] = flood_value_back # Boundary
+                edge = { ( row, col ) }
+                full_edge = set()
+                while edge:
+                    new_edge = set()
+                    for ( row, col ) in edge:
+                        if isCanceled():
+                            return None
+                        for (s, t) in self.coordinatesAdjacentPixels( row, col ):
+                            # If already processed, or if a coordinate is negative, or a coordinate greather image limit, skip
+                            if (s, t) in full_edge or s < 0 or t < 0 or s > (rows-1) or t > (cols-1):
+                                continue
+                            coord = ( s, t )
+                            full_edge.add( coord )
+                            if isBoundary( coord[0], coord[1] ):
+                                continue
+                            if isSameValue( coord[0], coord[1] ):
+                                arry_flood[ :, coord[0], coord[1] ] = flood_value
+                                new_edge.add((s, t))
+                    full_edge = edge  # discard pixels processed
+                    edge = new_edge
 
-            row, col = seed[1], seed[0]
-            ( n_bands, rows, cols ) = arry_flood.shape
-            value_seed = []
-            for idx in range( n_bands ):
-                value_seed.append( arry_flood[ idx, row, col ] )
-                arry_flood[ idx, row, col ] = self.flood_value
-                if valueFloodBack:
-                    arry_flood[ idx ][ bool_FloodBack ] = valueFloodBack # Boundary
-            edge = { ( row, col ) }
-            full_edge = set()
-            while edge:
-                new_edge = set()
-                for ( row, col ) in edge:
-                    if isCanceled():
-                        return None
-                    for (s, t) in self.coordinatesAdjacentPixels( row, col ):
-                        # If already processed, or if a coordinate is negative, or a coordinate greather image limit, skip
-                        if (s, t) in full_edge or s < 0 or t < 0 or s > (rows-1) or t > (cols-1):
-                            continue
-                        coord = ( s, t )
-                        full_edge.add( coord )
-                        if valueFloodBack and isBoundary( coord[0], coord[1] ):
-                            continue
-                        if isSameValue( coord[0], coord[1] ):
-                            arry_flood[ :, coord[0], coord[1] ] = self.flood_value
-                            new_edge.add((s, t))
-                full_edge = edge  # discard pixels processed
-                edge = new_edge
-
-            if valueFloodBack:
                 for idx in range( n_bands ):
                     arry_flood[ idx ][ bool_FloodBack ] = self.flood_out # Remove Boundary
 
-            return arry_flood
+                return arry_flood
 
+            thresh = threshould if threshould else self.threshFlood
+            ( n_bands, rows, cols ) = arraySource.shape
+            value_seed = []
+            return processFloodBack() if not arrayFloodBack is None else process()
+
+        flood_value = 1000 # RGB value 0 - 255
+        arry_flood = arraySource.astype('uint16') # Using flood_value and flood_value_back
         arry_flood = floodfill()
         if arry_flood is None:
-            return None
+            return None # Cancel
 
-        bool_out = ~(arry_flood == self.flood_value)
+        bool_out = ~(arry_flood == flood_value)
         arry_flood[ bool_out ] = self.flood_out
         arry_flood = sieve( arry_flood )
-        arry_flood[ arry_flood == self.flood_value ] = self.flood_value_color
-        return arry_flood
+        arry_flood[ arry_flood == flood_value ] = self.flood_value_color
+        return arry_flood.astype('uint8')
 
     def getThresholdFlood(self, point1, point2):
         minDelta = 1
@@ -305,13 +321,6 @@ class CalculateArrayFlood():
 
     def setCoordinatesAdjacentPixels(self, is8pixels):
         self.coordinatesAdjacentPixels = self._coordinateAdjacent8Pixels if is8pixels else self._coordinatesAdjacent4Pixels
-
-    def setFloodValue(self, array):
-        for v in range(1, 256):
-            if array[array == v].sum() == 0:
-                self.flood_value = v
-                return True
-        return False
 
     def setFloodValueFromDatasetImage(self, dsImage):
         return self.setFloodValue( dsImage.ReadAsArray() )

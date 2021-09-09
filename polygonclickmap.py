@@ -122,8 +122,6 @@ class ImageFlood(QObject):
         self.canvasArray.process( self.rastersCanvas )
         if self.canvasArray.array is None:
             raise TypeError("Error created image from canvas. Check exists raster layer visible")
-        if not self.calcFlood.setFloodValue( self.canvasArray.array ):
-            raise TypeError("Impossible define value of seed")
 
     def getRasterCanvas(self):
         return self.canvasArray.rasterLayers()
