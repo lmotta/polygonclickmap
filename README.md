@@ -10,6 +10,8 @@ SciPy(https://www.scipy.org/install.html) for fill holes. The QGIS install SciPy
 Luiz Motta
 
 ## Changelog
+- 2021-09-09
+Fixed calculate floodfill
 - 2021-09-07
 Fixed: missing region when change CRS, check exist region for polygonize and check operations of adjust border.
 - 2021-09-05
