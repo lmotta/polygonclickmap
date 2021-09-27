@@ -10,6 +10,8 @@ SciPy(https://www.scipy.org/install.html) for fill holes. The QGIS install SciPy
 Luiz Motta
 
 ## Changelog
+- 0.7(2021-09-27)
+Fixed remove plugin (About remained in Menu)
 - 2021-09-09
 Fixed calculate floodfill
 - 2021-09-07

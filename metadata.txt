@@ -8,7 +8,7 @@ about:From the click on the map, the tool automatically creates a polygon on the
 
      Documentation: <a href="https://github.com/lmotta/polygonclickmap/wiki/English">english</a> or <a href="https://github.com/lmotta/polygonclickmap/wiki/Portuguese">portuguese</a>.
 
-version:0.6
+version:0.7
 qgisMinimumVersion:3.16
 
 author:Luiz Motta
@@ -27,7 +27,9 @@ icon:./resources/polygonclickmap.svg
 experimental:False
 deprecated:False
 
-changelog:0.6(2021-09-09)
+changelog:0.7(2021-09-27)
+  Fixed remove plugin (About remained in Menu)
+  - 0.6(2021-09-09)
   Fixed calculate floodfill
   - 0.5(2021-09-07)
   Fixed: missing region when change CRS, check exist region for polygonize and check operations of adjust border.
