@@ -103,7 +103,8 @@ class PolygonClickMapPlugin(QObject):
         self.iface.currentLayerChanged.connect( self._currentLayerChanged )
 
     def unload(self):
-        for action in [ self.actions['tool'], self.actions['layer_field'] ]:
+        for k in self.actions:
+            action = self.actions[ k ]
             self.iface.removePluginMenu( f"&{self.titleTool}", action )
             self.iface.removeToolBarIcon( action )
             self.iface.unregisterMainWindowAction( action )
